@@ -16,15 +16,20 @@
 package com.alibaba.nacos.core.env;
 
 
+import com.alibaba.nacos.core.utils.WatchFileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.util.Properties;
 
 /**
@@ -36,15 +41,28 @@ import java.util.Properties;
 @Component
 public class ReloadableConfigs {
 
-    private Properties properties;
+    private static final Logger logger = LoggerFactory.getLogger(ReloadableConfigs.class);
+
+    private volatile Properties properties;
 
     @Value("${spring.config.location:}")
     private String path;
 
     private static final String FILE_PREFIX = "file:";
 
-    @Scheduled(fixedRate = 5000)
-    public void reload() throws IOException {
+    @PostConstruct
+    public void init() throws IOException {
+        WatchFileUtils.registerWatch(readFile(), watchEvent -> {
+            try {
+                readFile();
+            } catch (Exception e) {
+                logger.error("read file has error : {}", e);
+            }
+        });
+    }
+
+    private String readFile() throws IOException {
+        String directory = null;
         Properties properties = new Properties();
         InputStream inputStream = null;
         if (StringUtils.isNotBlank(path) && path.contains(FILE_PREFIX)) {
@@ -53,14 +71,18 @@ public class ReloadableConfigs {
         }
         try {
             inputStream = new FileInputStream(new File(path + "application.properties"));
+            directory = path;
         } catch (Exception ignore) {
         }
         if (inputStream == null) {
-            inputStream = getClass().getResourceAsStream("/application.properties");
+            URL url = getClass().getResource("/application.properties");
+            directory = url.getPath().replace("/application.properties", "");
+            inputStream = url.openStream();
         }
         properties.load(inputStream);
         inputStream.close();
         this.properties = properties;
+        return directory;
     }
 
     public final Properties getProperties() {

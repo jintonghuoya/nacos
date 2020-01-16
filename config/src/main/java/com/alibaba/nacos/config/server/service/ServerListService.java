@@ -96,7 +96,7 @@ public class ServerListService implements ApplicationListener<WebServerInitializ
         try {
             String val = null;
             val = env.getProperty("useAddressServer");
-            if (val != null && FALSE_STR.equals(val)) {
+            if (FALSE_STR.equals(val)) {
                 isUseAddressServer = false;
             }
             fatalLog.warn("useAddressServer:{}", isUseAddressServer);
