@@ -60,6 +60,13 @@ public class WatchFileUtils {
                 }
             }, (r, executor) -> Loggers.WATCH_FILE.warn("A maximum of 32 directories are supported"));
 
+    /**
+     * Register listeners for directory change events
+     *
+     * @param directory File directory
+     * @param consumer {@link Consumer<WatchEvent>}
+     * @param <T> Type
+     */
     public synchronized static <T> void registerWatch(String directory, Consumer<WatchEvent> consumer) {
         try {
             WatchWorker watchWorker;
@@ -76,6 +83,18 @@ public class WatchFileUtils {
             }
         } catch (Exception e) {
             Loggers.WATCH_FILE.error("registerWatch has error : {}", ExceptionUtil.getAllExceptionMsg(e));
+        }
+    }
+
+    /**
+     * deregister listeners for directory change events
+     *
+     * @param directory File directory
+     */
+    public synchronized static void deregisterWatch(String directory) {
+        if (ALREADY_REGISTER_PATHS.containsKey(directory)) {
+            WatchWorker worker = ALREADY_REGISTER_PATHS.get(directory);
+            worker.deregister();
         }
     }
 
