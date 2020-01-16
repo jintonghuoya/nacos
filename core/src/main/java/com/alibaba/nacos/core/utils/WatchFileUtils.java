@@ -42,7 +42,7 @@ import java.util.function.Consumer;
  */
 public class WatchFileUtils {
 
-    private static final Map<String, WatchWorker> alreadyRegisterPaths = new HashMap<>(32);
+    private static final Map<String, WatchWorker> ALREADY_REGISTER_PATHS = new HashMap<>(32);
 
     private static final ThreadPoolExecutor WATCH_EXECUTOR = new ThreadPoolExecutor(0, 32,
             60L, java.util.concurrent.TimeUnit.SECONDS,
@@ -63,8 +63,8 @@ public class WatchFileUtils {
     public synchronized static <T> void registerWatch(String directory, Consumer<WatchEvent> consumer) {
         try {
             WatchWorker watchWorker;
-            if (alreadyRegisterPaths.containsKey(directory)) {
-                watchWorker = alreadyRegisterPaths.get(directory);
+            if (ALREADY_REGISTER_PATHS.containsKey(directory)) {
+                watchWorker = ALREADY_REGISTER_PATHS.get(directory);
                 watchWorker.consumers.add(consumer);
             } else {
                 WatchService watchService = FileSystems.getDefault().newWatchService();
@@ -72,7 +72,7 @@ public class WatchFileUtils {
                         StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.ENTRY_DELETE);
                 watchWorker = new WatchWorker(watchService, directory);
                 WATCH_EXECUTOR.submit(watchWorker);
-                alreadyRegisterPaths.put(directory, watchWorker);
+                ALREADY_REGISTER_PATHS.put(directory, watchWorker);
             }
         } catch (Exception e) {
             Loggers.WATCH_FILE.error("registerWatch has error : {}", ExceptionUtil.getAllExceptionMsg(e));
