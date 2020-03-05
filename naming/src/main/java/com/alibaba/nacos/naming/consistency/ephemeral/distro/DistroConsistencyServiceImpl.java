@@ -40,10 +40,7 @@ import javax.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.*;
 
 /**
  * A consistency protocol algorithm called <b>Distro</b>
@@ -62,6 +59,18 @@ import java.util.concurrent.LinkedBlockingQueue;
 @org.springframework.stereotype.Service("distroConsistencyService")
 public class DistroConsistencyServiceImpl implements EphemeralConsistencyService {
 
+    private ScheduledExecutorService executor = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r);
+
+            t.setDaemon(true);
+            t.setName("com.alibaba.nacos.naming.distro.notifier");
+
+            return t;
+        }
+    });
+
     @Autowired
     private DistroMapper distroMapper;
 
@@ -70,6 +79,9 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
     @Autowired
     private TaskDispatcher taskDispatcher;
+
+    @Autowired
+    private DataSyncer dataSyncer;
 
     @Autowired
     private Serializer serializer;
@@ -85,7 +97,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
     private boolean initialized = false;
 
-    private volatile Notifier notifier = new Notifier();
+    public volatile Notifier notifier = new Notifier();
 
     private LoadDataTask loadDataTask = new LoadDataTask();
 
@@ -95,8 +107,19 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
     @PostConstruct
     public void init() {
+        GlobalExecutor.submit(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    load();
+                } catch (Exception e) {
+                    Loggers.DISTRO.error("load data failed.", e);
+                }
+            }
+        });
+
+        executor.submit(notifier);
         GlobalExecutor.submit(loadDataTask);
-        GlobalExecutor.submitDistroNotifyTask(notifier);
     }
 
     private class LoadDataTask implements Runnable {
@@ -208,8 +231,8 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
                 }
 
                 if (!dataStore.contains(entry.getKey()) ||
-                    dataStore.get(entry.getKey()).value == null ||
-                    !dataStore.get(entry.getKey()).value.getChecksum().equals(entry.getValue())) {
+                        dataStore.get(entry.getKey()).value == null ||
+                        !dataStore.get(entry.getKey()).value.getChecksum().equals(entry.getValue())) {
                     toUpdateKeys.add(entry.getKey());
                 }
             }
@@ -265,7 +288,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
     public void processData(byte[] data) throws Exception {
         if (data.length > 0) {
             Map<String, Datum<Instances>> datumMap =
-                serializer.deserializeMap(data, Instances.class);
+                    serializer.deserializeMap(data, Instances.class);
 
 
             for (Map.Entry<String, Datum<Instances>> entry : datumMap.entrySet()) {
@@ -286,7 +309,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
                         service.setLastModifiedMillis(System.currentTimeMillis());
                         service.recalculateChecksum();
                         listeners.get(KeyBuilder.SERVICE_META_KEY_PREFIX).get(0)
-                            .onChange(KeyBuilder.buildServiceMetaKey(namespaceId, serviceName), service);
+                                .onChange(KeyBuilder.buildServiceMetaKey(namespaceId, serviceName), service);
                     }
                 }
             }
@@ -415,7 +438,7 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
                     if (Loggers.DISTRO.isDebugEnabled()) {
                         Loggers.DISTRO.debug("[NACOS-DISTRO] datum change notified, key: {}, listener count: {}, action: {}",
-                            datumKey, count, action.name());
+                                datumKey, count, action.name());
                     }
                 } catch (Throwable e) {
                     Loggers.DISTRO.error("[NACOS-DISTRO] Error while handling notifying task", e);

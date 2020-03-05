@@ -19,7 +19,6 @@ import com.alibaba.nacos.api.NacosFactory;
 import com.alibaba.nacos.api.PropertyKeyConst;
 import com.alibaba.nacos.api.naming.NamingService;
 import com.alibaba.nacos.api.naming.pojo.Instance;
-
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -37,8 +36,10 @@ public class NamingTest {
     public void testServiceList() throws Exception {
 
         Properties properties = new Properties();
-        properties.put(PropertyKeyConst.SERVER_ADDR, "11.160.165.126:8848");
-        properties.put(PropertyKeyConst.NAMESPACE, "t1");
+        properties.put(PropertyKeyConst.SERVER_ADDR, "127.0.0.1:8848");
+        properties.put(PropertyKeyConst.USERNAME, "nacos");
+        properties.put(PropertyKeyConst.PASSWORD, "nacos");
+        properties.put(PropertyKeyConst.NAMESPACE, "");
 
         NamingService namingService = NacosFactory.createNamingService(properties);
 
