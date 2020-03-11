@@ -107,8 +107,8 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
     @PostConstruct
     public void init() {
-        executor.submit(notifier);
         GlobalExecutor.submit(loadDataTask);
+        GlobalExecutor.submitDistroNotifyTask(notifier);
     }
 
     private class LoadDataTask implements Runnable {
