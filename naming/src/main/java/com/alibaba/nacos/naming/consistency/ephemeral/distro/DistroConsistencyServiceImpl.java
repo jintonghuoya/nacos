@@ -97,9 +97,9 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
     private boolean initialized = false;
 
-    public volatile Notifier notifier = new Notifier();
-
     private LoadDataTask loadDataTask = new LoadDataTask();
+
+    public volatile Notifier notifier = new Notifier();
 
     private Map<String, CopyOnWriteArrayList<RecordListener>> listeners = new ConcurrentHashMap<>();
 
@@ -107,17 +107,6 @@ public class DistroConsistencyServiceImpl implements EphemeralConsistencyService
 
     @PostConstruct
     public void init() {
-        GlobalExecutor.submit(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    load();
-                } catch (Exception e) {
-                    Loggers.DISTRO.error("load data failed.", e);
-                }
-            }
-        });
-
         executor.submit(notifier);
         GlobalExecutor.submit(loadDataTask);
     }

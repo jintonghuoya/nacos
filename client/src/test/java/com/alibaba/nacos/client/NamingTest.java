@@ -45,7 +45,7 @@ public class NamingTest {
 
         Instance instance = new Instance();
         instance.setIp("1.1.1.1");
-        instance.setPort(80);
+        instance.setPort(800);
         instance.setWeight(2);
         Map<String, String> map = new HashMap<String, String>();
         map.put("netType", "external");
@@ -58,7 +58,6 @@ public class NamingTest {
 //        expressionSelector.setExpression("INSTANCE.metadata.registerSource = 'dubbo'");
 //        ListView<String> serviceList = namingService.getServicesOfServer(1, 10, expressionSelector);
 
-        Thread.sleep(1000000000L);
     }
 
 
