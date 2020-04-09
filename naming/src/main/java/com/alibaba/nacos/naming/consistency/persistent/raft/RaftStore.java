@@ -290,6 +290,22 @@ public class RaftStore {
         }
     }
 
+    /**
+     * 是否需要切换新老版本的存储形式
+     * 如果是老版本第一次切换到新版本，并且data目录有数据，则需要迁移到新版本
+     * 如果是老版本升级后，该目录应该是没有数据了
+     *
+     * @return
+     */
+    public boolean isNeedSwitchStorage() {
+        try {
+            return listCaches().length > 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
     private static String encodeFileName(String fileName) {
         return fileName.replace(':', '#');
     }
