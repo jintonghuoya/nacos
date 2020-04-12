@@ -8,8 +8,7 @@ import com.alibaba.nacos.consistency.snapshot.Reader;
 import com.alibaba.nacos.consistency.snapshot.Writer;
 import com.alibaba.nacos.consistency.snapshot.*;
 import com.alibaba.nacos.core.utils.DiskUtils;
-import com.alibaba.nacos.naming.consistency.Datum;
-import com.alibaba.nacos.naming.consistency.KeyBuilder;
+import com.alibaba.nacos.naming.consistency.*;
 import com.alibaba.nacos.naming.core.Instance;
 import com.alibaba.nacos.naming.core.Instances;
 import com.alibaba.nacos.naming.core.Service;
@@ -17,6 +16,7 @@ import com.alibaba.nacos.naming.misc.Loggers;
 import com.alibaba.nacos.naming.misc.SwitchDomain;
 import com.alibaba.nacos.naming.misc.UtilsAndCommons;
 import com.alipay.sofa.jraft.util.Utils;
+import com.google.common.base.Strings;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
@@ -26,20 +26,39 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * @author jack_xjdai
  * @date 2020/4/713:50
  * @description: 注册中心快照操作
+ * <p>
+ * TODO 现行的存储是SwitchDomain，Service和Instances三个对象对象都落地磁盘
+ * TODO 并且都在RaftCore中管理
+ * TODO 需要将这三块的数据，统一存储，统一读取逻辑
+ * TODO 或者保留老版本的数据存储格式，每个都存一份
+ * TODO 这样就需要考虑存储快照以及读取快照的时候的效率问题
  */
 public class NamingSnapshotOperation implements SnapshotOperation {
+
+    private SwitchDomainManager switchDomainManager;
+    private ServiceManager serviceManager;
+    private InstancesManager instancesManager;
+
+    public NamingSnapshotOperation(SwitchDomainManager switchDomainManager,
+                                   ServiceManager serviceManager,
+                                   InstancesManager instancesManager) {
+        this.switchDomainManager = switchDomainManager;
+        this.serviceManager = serviceManager;
+        this.instancesManager = instancesManager;
+    }
 
     // 老版本的naming的实例的镜像存储路径
     private final String oldSnapshotDir = UtilsAndCommons.DATA_BASE_DIR + File.separator + "data";
 
+    // 快照文件存储的全路径
     private String snapshotDataFilename;
 
+    // 快照元信息存储的全路径
     private String snapshotMetaFilename;
 
     /**
@@ -49,10 +68,18 @@ public class NamingSnapshotOperation implements SnapshotOperation {
      */
     private File[] listOldSnapshotDirs() {
         File tempDir = new File(this.oldSnapshotDir);
-        if (!tempDir.exists() && !tempDir.mkdirs()) {
-            throw new IllegalStateException("cloud not make out directory: " + tempDir.getName());
+        if (!tempDir.exists()) {
+            return null;
         }
         return tempDir.listFiles();
+    }
+
+    private boolean isNeedSwitchStorage() {
+        File[] oldSnapshotDirs = listOldSnapshotDirs();
+        if (null != oldSnapshotDirs && oldSnapshotDirs.length > 0) {
+            return true;
+        }
+        return false;
     }
 
 
@@ -66,11 +93,12 @@ public class NamingSnapshotOperation implements SnapshotOperation {
      */
     @Override
     public void onSnapshotSave(Writer writer, CallFinally callFinally) {
-        snapshotDataFilename = writer.getPath() + File.separator + "data";
-        snapshotMetaFilename = writer.getPath() + File.separator + "meta";
+
+        initSnapshotFilename(writer.getPath());
+
         Utils.runInThread(() -> {
             try {
-                doSnapshot();
+                saveSnapshot();
                 callFinally.run(true, null);
             } catch (Throwable t) {
                 callFinally.run(false, t);
@@ -89,21 +117,21 @@ public class NamingSnapshotOperation implements SnapshotOperation {
      */
     @Override
     public boolean onSnapshotLoad(Reader reader) {
-        snapshotDataFilename = reader.getPath() + File.separator + "data";
-        snapshotMetaFilename = reader.getPath() + File.separator + "meta";
 
-        if (listOldSnapshotDirs().length > 0) {
+        initSnapshotFilename(reader.getPath());
+
+        if (isNeedSwitchStorage()) {
             // 1.读取老版本的数据到内存中
             try {
-                // TODO 将加载出来的datums赋值给新版JRaft的存储
-                Map<String, Datum> datums = loadOldSnapshot();
+                // 将加载出来的datums赋值给新版的内存数据结构
+                loadOldSnapshot();
             } catch (IOException e) {
                 e.printStackTrace();
             }
 
             // 2.将读取到的数据，先做一次新版本的snapshot
             try {
-                doSnapshot();
+                saveSnapshot();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -135,27 +163,59 @@ public class NamingSnapshotOperation implements SnapshotOperation {
      *
      * @throws IOException
      */
-    private Map<String, Datum> loadOldSnapshot() throws IOException {
-        Map<String, Datum> datums = new ConcurrentHashMap<>();
+    private void loadOldSnapshot() throws IOException {
+        Map<String, Object> compositeMap = new ConcurrentHashMap<>();
+        Map<String, Datum<SwitchDomain>> switchDomainDatums = new ConcurrentHashMap<>();
+        Map<String, Datum<Service>> serviceDatums = new ConcurrentHashMap<>();
+        Map<String, Datum<Instances>> instancesDatums = new ConcurrentHashMap<>();
+
+        compositeMap.put("switchDomainMap", switchDomainDatums);
+        compositeMap.put("serviceMap", serviceDatums);
+        compositeMap.put("instancesMap", instancesDatums);
+
         Datum datum = null;
         long start = System.currentTimeMillis();
         for (File snapshotDir : listOldSnapshotDirs()) {
             if (snapshotDir.isDirectory() && snapshotDir.listFiles() != null) {
                 for (File datumFile : snapshotDir.listFiles()) {
                     datum = readOldDatum(datumFile, snapshotDir.getName());
-                    if (datum != null) {
-                        datums.put(datum.key, datum);
+                    if (datum.value instanceof SwitchDomain) {
+                        switchDomainDatums.put(datum.key, datum);
+                    } else if (datum.value instanceof Service) {
+                        serviceDatums.put(datum.key, datum);
+                    } else if (datum.value instanceof Instances) {
+                        instancesDatums.put(datum.key, datum);
+                    } else {
+                        throw new IllegalArgumentException("不支持的类型......");
                     }
                 }
                 continue;
             }
             datum = readOldDatum(snapshotDir, StringUtils.EMPTY);
             if (datum != null) {
-                datums.put(datum.key, datum);
+                if (datum.value instanceof SwitchDomain) {
+                    switchDomainDatums.put(datum.key, datum);
+                } else if (datum.value instanceof Service) {
+                    serviceDatums.put(datum.key, datum);
+                } else if (datum.value instanceof Instances) {
+                    instancesDatums.put(datum.key, datum);
+                } else {
+                    throw new IllegalArgumentException("不支持的类型......");
+                }
             }
         }
-        Loggers.RAFT.info("finish loading all datums, size: {} cost {} ms.", datums.size(), (System.currentTimeMillis() - start));
-        return datums;
+
+        if (!switchDomainDatums.isEmpty()) {
+            switchDomainManager.setDatums(switchDomainDatums);
+        }
+
+        if (!serviceDatums.isEmpty()) {
+            serviceManager.setDatums(serviceDatums);
+        }
+
+        if (!instancesDatums.isEmpty()) {
+            instancesManager.setDatums(instancesDatums);
+        }
     }
 
 
@@ -268,8 +328,8 @@ public class NamingSnapshotOperation implements SnapshotOperation {
 
         int snapshotLength = (int) localFileMeta.get("snapshotLength");
 
-        // TODO 将加载出来的datums，赋值给内存结构
-        Map<String, Datum> datums = readData(snapshotDataFilename, snapshotLength);
+        // 将加载出来的datums，赋值给内存结构
+        readData(snapshotDataFilename, snapshotLength);
     }
 
 
@@ -278,10 +338,14 @@ public class NamingSnapshotOperation implements SnapshotOperation {
      * 1.data信息落地磁盘
      * 2.meta信息落地磁盘
      */
-    private void doSnapshot() throws IOException {
-        // 这个应该是从新的数据结构获取
-        // TODO 从别的地方获取
-        ConcurrentMap<String, Datum> datums = new ConcurrentHashMap<>();
+    private void saveSnapshot() throws IOException {
+        // 拿到当前的内存数据
+        Map<String, Datum<SwitchDomain>> datums = switchDomainManager.getDatums();
+
+        if (datums.isEmpty()) {
+            return;
+        }
+
         byte[] dataBytes = JSON.toJSONBytes(datums);
 
         saveFile(snapshotDataFilename, dataBytes);
@@ -328,6 +392,10 @@ public class NamingSnapshotOperation implements SnapshotOperation {
 
     /**
      * 基于NIO读取Meta信息
+     *
+     * @param filename
+     * @return
+     * @throws IOException
      */
     private LocalFileMeta readMeta(String filename) throws IOException {
         FileInputStream in = null;
@@ -386,6 +454,23 @@ public class NamingSnapshotOperation implements SnapshotOperation {
             if (file != null) {
                 file.close();
             }
+        }
+    }
+
+    /**
+     * 初始化快照相关的文件全路径参数
+     *
+     * @param baseDir
+     */
+    private synchronized void initSnapshotFilename(String baseDir) {
+        if (Strings.isNullOrEmpty(baseDir)) {
+            throw new IllegalArgumentException();
+        }
+        // 只初始化一次
+        if (Strings.isNullOrEmpty(snapshotDataFilename)
+            || Strings.isNullOrEmpty(snapshotMetaFilename)) {
+            snapshotDataFilename = baseDir + File.separator + "data";
+            snapshotMetaFilename = baseDir + File.separator + "meta";
         }
     }
 }
