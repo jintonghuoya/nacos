@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @date 2020/4/11 20:50
  * @description: 负责管理服务注册中心核心数据结构组件
  */
-public class InstancesManager {
+public class InstancesManager implements RecordManager<Instances> {
     // 核心数据结构
     private volatile Map<String, Datum<Instances>> datums = new ConcurrentHashMap<>();
 
@@ -21,4 +21,16 @@ public class InstancesManager {
     public void setDatums(Map<String, Datum<Instances>> datums) {
         this.datums = datums;
     }
+
+    private InstancesManager() {
+    }
+
+    private static class SingletonHolder {
+        private static InstancesManager INSTANCE = new InstancesManager();
+    }
+
+    public static InstancesManager getInstance() {
+        return InstancesManager.SingletonHolder.INSTANCE;
+    }
+
 }

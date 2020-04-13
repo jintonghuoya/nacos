@@ -40,16 +40,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class NamingSnapshotOperation implements SnapshotOperation {
 
-    private SwitchDomainManager switchDomainManager;
-    private ServiceManager serviceManager;
-    private InstancesManager instancesManager;
-
-    public NamingSnapshotOperation(SwitchDomainManager switchDomainManager,
-                                   ServiceManager serviceManager,
-                                   InstancesManager instancesManager) {
-        this.switchDomainManager = switchDomainManager;
-        this.serviceManager = serviceManager;
-        this.instancesManager = instancesManager;
+    public NamingSnapshotOperation() {
     }
 
     // 老版本的naming的实例的镜像存储路径
@@ -206,15 +197,15 @@ public class NamingSnapshotOperation implements SnapshotOperation {
         }
 
         if (!switchDomainDatums.isEmpty()) {
-            switchDomainManager.setDatums(switchDomainDatums);
+            SwitchDomainManager.getInstance().setDatums(switchDomainDatums);
         }
 
         if (!serviceDatums.isEmpty()) {
-            serviceManager.setDatums(serviceDatums);
+            ServiceManager.getInstance().setDatums(serviceDatums);
         }
 
         if (!instancesDatums.isEmpty()) {
-            instancesManager.setDatums(instancesDatums);
+            InstancesManager.getInstance().setDatums(instancesDatums);
         }
     }
 
@@ -340,7 +331,7 @@ public class NamingSnapshotOperation implements SnapshotOperation {
      */
     private void saveSnapshot() throws IOException {
         // 拿到当前的内存数据
-        Map<String, Datum<SwitchDomain>> datums = switchDomainManager.getDatums();
+        Map<String, Datum<SwitchDomain>> datums = SwitchDomainManager.getInstance().getDatums();
 
         if (datums.isEmpty()) {
             return;
