@@ -15,11 +15,13 @@ import com.alibaba.nacos.naming.core.Service;
 import com.alibaba.nacos.naming.misc.Loggers;
 import com.alibaba.nacos.naming.misc.SwitchDomain;
 import com.alibaba.nacos.naming.misc.UtilsAndCommons;
+import com.alibaba.nacos.naming.pojo.Record;
 import com.alipay.sofa.jraft.util.Utils;
 import com.google.common.base.Strings;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
+import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -332,13 +334,15 @@ public class NamingSnapshotOperation implements SnapshotOperation {
 
             String snapshotDataFilename = getSnapshotDataFilename(recordManager.getSnapshotDataFilename());
             // 将加载出来的datums，赋值给内存结构
-            if (recordManager.getClazz().equals(SwitchDomain.class)) {
-                readSwitchDomainData(snapshotDataFilename, snapshotDataLength, recordManager);
-            } else if (recordManager.getClazz().equals(Service.class)) {
-                readServiceData(snapshotDataFilename, snapshotDataLength, recordManager);
-            } else if (recordManager.getClazz().equals(Instances.class)) {
-                readInstancesData(snapshotDataFilename, snapshotDataLength, recordManager);
-            }
+//            if (recordManager.getClazz().equals(SwitchDomain.class)) {
+//                readSwitchDomainData(snapshotDataFilename, snapshotDataLength, recordManager);
+//            } else if (recordManager.getClazz().equals(Service.class)) {
+//                readServiceData(snapshotDataFilename, snapshotDataLength, recordManager);
+//            } else if (recordManager.getClazz().equals(Instances.class)) {
+//                readInstancesData(snapshotDataFilename, snapshotDataLength, recordManager);
+//            }
+            Map<String,Datum> datums = readData(snapshotDataFilename, snapshotDataLength, recordManager.getClazz());
+            recordManager.getRecordManager().setDatums(datums);
         }
     }
 
@@ -383,6 +387,36 @@ public class NamingSnapshotOperation implements SnapshotOperation {
     /**
      * 基于NIO读取Data信息
      */
+    private <T extends Record> Map<String,Datum<T>> readData(String filename, int fileLength,
+                                                             Class<T> formattedClazz) throws IOException {
+        FileInputStream in = null;
+        FileChannel channel = null;
+        try {
+
+            File file = new File(filename);
+            if (!file.exists()) {
+                throw new IllegalArgumentException();
+            }
+
+            in = new FileInputStream(file);
+            channel = in.getChannel();
+
+            ByteBuffer buffer = ByteBuffer.allocate(fileLength);
+            channel.read(buffer);
+            buffer.flip();
+            Type type = new TypeReference<ConcurrentHashMap<String, Datum<T>>>(formattedClazz) {
+            }.getType();
+           return JSON.parseObject(buffer.array(),type);
+        } finally {
+            if (in != null) {
+                in.close();
+            }
+            if (channel != null) {
+                channel.close();
+            }
+        }
+    }
+
     private void readSwitchDomainData(String filename, int fileLength, RecordManagerFactory recordManager) throws IOException {
         FileInputStream in = null;
         FileChannel channel = null;

@@ -11,14 +11,14 @@ public enum RecordManagerFactory {
     INSTANCES("instances", Instances.class, true, "instances.data", "instances.meta", InstancesManager.getInstance());
 
     private String id;
-    private Class<?> clazz;
+    private Class clazz;
     private Boolean isNeedSnapshot;
     private String snapshotDataFilename;
     private String snapshotMetaFilename;
     private RecordManager recordManager;
 
     RecordManagerFactory(String id,
-                         Class<?> clazz,
+                         Class clazz,
                          Boolean isNeedSnapshot,
                          String snapshotDataFilename,
                          String snapshotMetaFilename,
@@ -35,7 +35,7 @@ public enum RecordManagerFactory {
         return id;
     }
 
-    public Class<?> getClazz() {
+    public Class getClazz() {
         return clazz;
     }
 
