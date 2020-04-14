@@ -46,11 +46,11 @@ public class NamingSnapshotOperation implements SnapshotOperation {
     // 老版本的naming的实例的镜像存储路径
     private final String oldSnapshotDir = UtilsAndCommons.DATA_BASE_DIR + File.separator + "data";
 
-    // 快照文件存储的全路径
-    private String snapshotDataFilename;
+    // 快照文件存储的目录
+    private String snapshotDataDir;
 
-    // 快照元信息存储的全路径
-    private String snapshotMetaFilename;
+    // 快照元信息存储的目录
+    private String snapshotMetaDir;
 
     /**
      * 通过判断老版本的snapshot目录下是否有文件，来确定是否需要做存储版本切换
@@ -65,6 +65,11 @@ public class NamingSnapshotOperation implements SnapshotOperation {
         return tempDir.listFiles();
     }
 
+    /**
+     * 是否需要切换新老版本的存储
+     *
+     * @return
+     */
     private boolean isNeedSwitchStorage() {
         File[] oldSnapshotDirs = listOldSnapshotDirs();
         if (null != oldSnapshotDirs && oldSnapshotDirs.length > 0) {
@@ -85,7 +90,7 @@ public class NamingSnapshotOperation implements SnapshotOperation {
     @Override
     public void onSnapshotSave(Writer writer, CallFinally callFinally) {
 
-        initSnapshotFilename(writer.getPath());
+        initSnapshotDir(writer.getPath());
 
         Utils.runInThread(() -> {
             try {
@@ -109,7 +114,7 @@ public class NamingSnapshotOperation implements SnapshotOperation {
     @Override
     public boolean onSnapshotLoad(Reader reader) {
 
-        initSnapshotFilename(reader.getPath());
+        initSnapshotDir(reader.getPath());
 
         if (isNeedSwitchStorage()) {
             // 1.读取老版本的数据到内存中
@@ -310,17 +315,31 @@ public class NamingSnapshotOperation implements SnapshotOperation {
 
 
     /**
-     * 加载
+     * 遍历
      *
      * @return
      */
     private void loadSnapshot() throws IOException {
-        LocalFileMeta localFileMeta = readMeta(snapshotMetaFilename);
+        for (RecordManagerFactory recordManager : RecordManagerFactory.values()) {
+            if (!recordManager.getNeedSnapshot()) {
+                continue;
+            }
+            String snapshotMetaFilename = getSnapshotMetaFilename(recordManager.getSnapshotMetaFilename());
 
-        int snapshotLength = (int) localFileMeta.get("snapshotLength");
+            LocalFileMeta localFileMeta = readMeta(snapshotMetaFilename);
 
-        // 将加载出来的datums，赋值给内存结构
-        readData(snapshotDataFilename, snapshotLength);
+            int snapshotDataLength = (int) localFileMeta.get("snapshotDataLength");
+
+            String snapshotDataFilename = getSnapshotDataFilename(recordManager.getSnapshotDataFilename());
+            // 将加载出来的datums，赋值给内存结构
+            if (recordManager.getClazz().equals(SwitchDomain.class)) {
+                readSwitchDomainData(snapshotDataFilename, snapshotDataLength, recordManager);
+            } else if (recordManager.getClazz().equals(Service.class)) {
+                readServiceData(snapshotDataFilename, snapshotDataLength, recordManager);
+            } else if (recordManager.getClazz().equals(Instances.class)) {
+                readInstancesData(snapshotDataFilename, snapshotDataLength, recordManager);
+            }
+        }
     }
 
 
@@ -330,29 +349,41 @@ public class NamingSnapshotOperation implements SnapshotOperation {
      * 2.meta信息落地磁盘
      */
     private void saveSnapshot() throws IOException {
-        // 拿到当前的内存数据
-        Map<String, Datum<SwitchDomain>> datums = SwitchDomainManager.getInstance().getDatums();
 
-        if (datums.isEmpty()) {
-            return;
+        // 循环遍历RecordManager
+        for (RecordManagerFactory recordManager : RecordManagerFactory.values()) {
+
+            // 如果不需要做快照，则跳过
+            if (!recordManager.getNeedSnapshot()) {
+                continue;
+            }
+
+            // 拿到当前的内存数据
+            Map<String, Datum> datums = recordManager.getRecordManager().getDatums();
+
+            if (datums.isEmpty()) {
+                return;
+            }
+
+            byte[] dataBytes = JSON.toJSONBytes(datums);
+
+            String snapshotDataFilename = getSnapshotDataFilename(recordManager.getSnapshotDataFilename());
+            saveFile(snapshotDataFilename, dataBytes);
+
+            LocalFileMeta localFileMeta = new LocalFileMeta();
+            localFileMeta.append("snapshotTimestamp", System.currentTimeMillis());
+            localFileMeta.append("snapshotDataLength", dataBytes.length);
+            byte[] metaBytes = JSON.toJSONBytes(localFileMeta);
+
+            String snapshotMetaFilename = getSnapshotMetaFilename(recordManager.getSnapshotMetaFilename());
+            saveFile(snapshotMetaFilename, metaBytes);
         }
-
-        byte[] dataBytes = JSON.toJSONBytes(datums);
-
-        saveFile(snapshotDataFilename, dataBytes);
-
-        LocalFileMeta localFileMeta = new LocalFileMeta();
-        localFileMeta.append("snapshotFilename", snapshotDataFilename);
-        localFileMeta.append("snapshotTimestamp", System.currentTimeMillis());
-        localFileMeta.append("snapshotLength", dataBytes.length);
-        byte[] metaBytes = JSON.toJSONBytes(localFileMeta);
-        saveFile(snapshotMetaFilename, metaBytes);
     }
 
     /**
      * 基于NIO读取Data信息
      */
-    private Map<String, Datum> readData(String filename, int fileLength) throws IOException {
+    private void readSwitchDomainData(String filename, int fileLength, RecordManagerFactory recordManager) throws IOException {
         FileInputStream in = null;
         FileChannel channel = null;
         try {
@@ -369,8 +400,69 @@ public class NamingSnapshotOperation implements SnapshotOperation {
             channel.read(buffer);
             buffer.flip();
 
-            return JSON.parseObject(buffer.array(), new TypeReference<ConcurrentHashMap<String, Datum>>() {
-            }.getType());
+            recordManager.getRecordManager().setDatums(
+                JSON.parseObject(buffer.array(), new TypeReference<ConcurrentHashMap<String, Datum<SwitchDomain>>>() {
+                }.getType()));
+        } finally {
+            if (in != null) {
+                in.close();
+            }
+            if (channel != null) {
+                channel.close();
+            }
+        }
+    }
+
+    private void readServiceData(String filename, int fileLength, RecordManagerFactory recordManager) throws IOException {
+        FileInputStream in = null;
+        FileChannel channel = null;
+        try {
+
+            File file = new File(filename);
+            if (!file.exists()) {
+                throw new IllegalArgumentException();
+            }
+
+            in = new FileInputStream(file);
+            channel = in.getChannel();
+
+            ByteBuffer buffer = ByteBuffer.allocate(fileLength);
+            channel.read(buffer);
+            buffer.flip();
+
+            recordManager.getRecordManager().setDatums(
+                JSON.parseObject(buffer.array(), new TypeReference<ConcurrentHashMap<String, Datum<Service>>>() {
+                }.getType()));
+        } finally {
+            if (in != null) {
+                in.close();
+            }
+            if (channel != null) {
+                channel.close();
+            }
+        }
+    }
+
+    private void readInstancesData(String filename, int fileLength, RecordManagerFactory recordManager) throws IOException {
+        FileInputStream in = null;
+        FileChannel channel = null;
+        try {
+
+            File file = new File(filename);
+            if (!file.exists()) {
+                throw new IllegalArgumentException();
+            }
+
+            in = new FileInputStream(file);
+            channel = in.getChannel();
+
+            ByteBuffer buffer = ByteBuffer.allocate(fileLength);
+            channel.read(buffer);
+            buffer.flip();
+
+            recordManager.getRecordManager().setDatums(
+                JSON.parseObject(buffer.array(), new TypeReference<ConcurrentHashMap<String, Datum<Instances>>>() {
+                }.getType()));
         } finally {
             if (in != null) {
                 in.close();
@@ -448,20 +540,43 @@ public class NamingSnapshotOperation implements SnapshotOperation {
         }
     }
 
+    private String getSnapshotMetaFilename(String metaFilename) {
+        if (Strings.isNullOrEmpty(snapshotMetaDir)
+            || Strings.isNullOrEmpty(metaFilename)) {
+            throw new IllegalArgumentException();
+        }
+        return snapshotMetaDir + File.separator + metaFilename;
+    }
+
+    private String getSnapshotDataFilename(String dataFilename) {
+        if (Strings.isNullOrEmpty(snapshotDataDir)
+            || Strings.isNullOrEmpty(dataFilename)) {
+            throw new IllegalArgumentException();
+        }
+        return snapshotDataDir + File.separator + dataFilename;
+    }
+
     /**
-     * 初始化快照相关的文件全路径参数
+     * 初始化快照相关的文件存放目录
      *
      * @param baseDir
      */
-    private synchronized void initSnapshotFilename(String baseDir) {
+    private synchronized void initSnapshotDir(String baseDir) {
         if (Strings.isNullOrEmpty(baseDir)) {
             throw new IllegalArgumentException();
         }
         // 只初始化一次
-        if (Strings.isNullOrEmpty(snapshotDataFilename)
-            || Strings.isNullOrEmpty(snapshotMetaFilename)) {
-            snapshotDataFilename = baseDir + File.separator + "data";
-            snapshotMetaFilename = baseDir + File.separator + "meta";
+        if (Strings.isNullOrEmpty(snapshotDataDir)
+            || Strings.isNullOrEmpty(snapshotMetaDir)) {
+            snapshotDataDir = baseDir + File.separator + "data";
+            snapshotMetaDir = baseDir + File.separator + "meta";
+            try {
+                DiskUtils.forceMkdir(snapshotDataDir);
+                DiskUtils.forceMkdir(snapshotMetaDir);
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalArgumentException();
+            }
         }
     }
 }
