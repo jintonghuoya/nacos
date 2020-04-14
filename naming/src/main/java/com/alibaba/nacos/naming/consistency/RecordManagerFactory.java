@@ -65,7 +65,7 @@ public enum RecordManagerFactory {
     }
 
 
-    public static RecordManager<? extends Record> determineRecordManagerByClass(Class<?> clazz) {
+    public static RecordManager<? extends Record> determineRecordManagerByClass(Class clazz) {
         for (RecordManagerFactory recordManagerFactory : RecordManagerFactory.values()) {
             if (recordManagerFactory.getClazz().equals(clazz)) {
                 return recordManagerFactory.getRecordManager();

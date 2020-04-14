@@ -8,7 +8,9 @@ import com.alibaba.nacos.consistency.snapshot.Reader;
 import com.alibaba.nacos.consistency.snapshot.Writer;
 import com.alibaba.nacos.consistency.snapshot.*;
 import com.alibaba.nacos.core.utils.DiskUtils;
-import com.alibaba.nacos.naming.consistency.*;
+import com.alibaba.nacos.naming.consistency.Datum;
+import com.alibaba.nacos.naming.consistency.KeyBuilder;
+import com.alibaba.nacos.naming.consistency.RecordManagerFactory;
 import com.alibaba.nacos.naming.core.Instance;
 import com.alibaba.nacos.naming.core.Instances;
 import com.alibaba.nacos.naming.core.Service;
@@ -46,40 +48,13 @@ public class NamingSnapshotOperation implements SnapshotOperation {
     }
 
     // 老版本的naming的实例的镜像存储路径
-    private final String oldSnapshotDir = UtilsAndCommons.DATA_BASE_DIR + File.separator + "data";
+    protected final String oldSnapshotDir = UtilsAndCommons.DATA_BASE_DIR + File.separator + "data";
 
     // 快照文件存储的目录
     private String snapshotDataDir;
 
     // 快照元信息存储的目录
     private String snapshotMetaDir;
-
-    /**
-     * 通过判断老版本的snapshot目录下是否有文件，来确定是否需要做存储版本切换
-     *
-     * @return
-     */
-    private File[] listOldSnapshotDirs() {
-        File tempDir = new File(this.oldSnapshotDir);
-        if (!tempDir.exists()) {
-            return null;
-        }
-        return tempDir.listFiles();
-    }
-
-    /**
-     * 是否需要切换新老版本的存储
-     *
-     * @return
-     */
-    private boolean isNeedSwitchStorage() {
-        File[] oldSnapshotDirs = listOldSnapshotDirs();
-        if (null != oldSnapshotDirs && oldSnapshotDirs.length > 0) {
-            return true;
-        }
-        return false;
-    }
-
 
     /**
      * 定时保存快照
@@ -161,58 +136,23 @@ public class NamingSnapshotOperation implements SnapshotOperation {
      *
      * @throws IOException
      */
-    private void loadOldSnapshot() throws IOException {
-        Map<String, Object> compositeMap = new ConcurrentHashMap<>();
-        Map<String, Datum<SwitchDomain>> switchDomainDatums = new ConcurrentHashMap<>();
-        Map<String, Datum<Service>> serviceDatums = new ConcurrentHashMap<>();
-        Map<String, Datum<Instances>> instancesDatums = new ConcurrentHashMap<>();
-
-        compositeMap.put("switchDomainMap", switchDomainDatums);
-        compositeMap.put("serviceMap", serviceDatums);
-        compositeMap.put("instancesMap", instancesDatums);
-
+    protected void loadOldSnapshot() throws IOException {
         Datum datum = null;
-        long start = System.currentTimeMillis();
         for (File snapshotDir : listOldSnapshotDirs()) {
             if (snapshotDir.isDirectory() && snapshotDir.listFiles() != null) {
                 for (File datumFile : snapshotDir.listFiles()) {
                     datum = readOldDatum(datumFile, snapshotDir.getName());
-                    if (datum.value instanceof SwitchDomain) {
-                        switchDomainDatums.put(datum.key, datum);
-                    } else if (datum.value instanceof Service) {
-                        serviceDatums.put(datum.key, datum);
-                    } else if (datum.value instanceof Instances) {
-                        instancesDatums.put(datum.key, datum);
-                    } else {
-                        throw new IllegalArgumentException("不支持的类型......");
-                    }
+                    if (datum == null)
+                        continue;
+                    RecordManagerFactory.determineRecordManagerByClass(datum.value.getClass()).getDatums().put(datum.key, datum);
                 }
                 continue;
             }
             datum = readOldDatum(snapshotDir, StringUtils.EMPTY);
-            if (datum != null) {
-                if (datum.value instanceof SwitchDomain) {
-                    switchDomainDatums.put(datum.key, datum);
-                } else if (datum.value instanceof Service) {
-                    serviceDatums.put(datum.key, datum);
-                } else if (datum.value instanceof Instances) {
-                    instancesDatums.put(datum.key, datum);
-                } else {
-                    throw new IllegalArgumentException("不支持的类型......");
-                }
+            if (datum == null) {
+                continue;
             }
-        }
-
-        if (!switchDomainDatums.isEmpty()) {
-            SwitchDomainManager.getInstance().setDatums(switchDomainDatums);
-        }
-
-        if (!serviceDatums.isEmpty()) {
-            ServiceManager.getInstance().setDatums(serviceDatums);
-        }
-
-        if (!instancesDatums.isEmpty()) {
-            InstancesManager.getInstance().setDatums(instancesDatums);
+            RecordManagerFactory.determineRecordManagerByClass(datum.value.getClass()).getDatums().put(datum.key, datum);
         }
     }
 
@@ -330,17 +270,14 @@ public class NamingSnapshotOperation implements SnapshotOperation {
 
             LocalFileMeta localFileMeta = readMeta(snapshotMetaFilename);
 
+            if (null == localFileMeta){
+                return;
+            }
+
             int snapshotDataLength = (int) localFileMeta.get("snapshotDataLength");
 
             String snapshotDataFilename = getSnapshotDataFilename(recordManager.getSnapshotDataFilename());
             // 将加载出来的datums，赋值给内存结构
-//            if (recordManager.getClazz().equals(SwitchDomain.class)) {
-//                readSwitchDomainData(snapshotDataFilename, snapshotDataLength, recordManager);
-//            } else if (recordManager.getClazz().equals(Service.class)) {
-//                readServiceData(snapshotDataFilename, snapshotDataLength, recordManager);
-//            } else if (recordManager.getClazz().equals(Instances.class)) {
-//                readInstancesData(snapshotDataFilename, snapshotDataLength, recordManager);
-//            }
             Map<String,Datum> datums = readData(snapshotDataFilename, snapshotDataLength, recordManager.getClazz());
             recordManager.getRecordManager().setDatums(datums);
         }
@@ -521,7 +458,7 @@ public class NamingSnapshotOperation implements SnapshotOperation {
 
             File file = new File(filename);
             if (!file.exists()) {
-                throw new IllegalArgumentException();
+                return null;
             }
 
             in = new FileInputStream(file);
@@ -573,6 +510,34 @@ public class NamingSnapshotOperation implements SnapshotOperation {
             }
         }
     }
+
+    /**
+     * 通过判断老版本的snapshot目录下是否有文件，来确定是否需要做存储版本切换
+     *
+     * @return
+     */
+    private File[] listOldSnapshotDirs() {
+        File tempDir = new File(this.oldSnapshotDir);
+        if (!tempDir.exists()) {
+            return null;
+        }
+        return tempDir.listFiles();
+    }
+
+    /**
+     * 是否需要切换新老版本的存储
+     *
+     * @return
+     */
+    private boolean isNeedSwitchStorage() {
+        File[] oldSnapshotDirs = listOldSnapshotDirs();
+        if (null != oldSnapshotDirs && oldSnapshotDirs.length > 0) {
+            return true;
+        }
+        return false;
+    }
+
+
 
     private String getSnapshotMetaFilename(String metaFilename) {
         if (Strings.isNullOrEmpty(snapshotMetaDir)
