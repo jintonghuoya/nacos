@@ -55,7 +55,7 @@ public class NamingSnapshotOperationTest {
 
         // 在保存快照
         Writer writer = new Writer(SNAPSHOT_DIR);
-        namingSnapshotOperation.onSnapshotSave(writer,new CallFinally(new BiConsumer<Boolean, Throwable>() {
+        namingSnapshotOperation.onSnapshotSave(writer, new CallFinally(new BiConsumer<Boolean, Throwable>() {
             @Override
             public void accept(Boolean aBoolean, Throwable throwable) {
                 System.out.println(aBoolean);
