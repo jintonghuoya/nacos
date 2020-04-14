@@ -35,17 +35,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author jack_xjdai
  * @date 2020/4/713:50
  * @description: 注册中心快照操作
- * <p>
- * TODO 现行的存储是SwitchDomain，Service和Instances三个对象对象都落地磁盘
- * TODO 并且都在RaftCore中管理
- * TODO 需要将这三块的数据，统一存储，统一读取逻辑
- * TODO 或者保留老版本的数据存储格式，每个都存一份
- * TODO 这样就需要考虑存储快照以及读取快照的时候的效率问题
  */
 public class NamingSnapshotOperation implements SnapshotOperation {
-
-    public NamingSnapshotOperation() {
-    }
 
     // 老版本的naming的实例的镜像存储路径
     protected final String oldSnapshotDir = UtilsAndCommons.DATA_BASE_DIR + File.separator + "data";
@@ -93,35 +84,38 @@ public class NamingSnapshotOperation implements SnapshotOperation {
 
         initSnapshotDir(reader.getPath());
 
+        // 1.老版本和新版本数据存储切换
+        // 2.正常执行逻辑即可
         if (isNeedSwitchStorage()) {
-            // 1.读取老版本的数据到内存中
             try {
                 // 将加载出来的datums赋值给新版的内存数据结构
                 loadOldSnapshot();
             } catch (IOException e) {
-                e.printStackTrace();
+                Loggers.RAFT.error("load old snapshot error", e);
+                throw new IllegalStateException("load old snapshot error");
             }
 
             // 2.将读取到的数据，先做一次新版本的snapshot
             try {
                 saveSnapshot();
             } catch (IOException e) {
-                e.printStackTrace();
+                Loggers.RAFT.error("save snapshot error after load old snapshot", e);
+                throw new IllegalStateException("save snapshot error after load old snapshot");
             }
 
             // 3.删除老版本的snapshot文件
             try {
                 deleteOldSnapshotFiles();
             } catch (IOException e) {
-                e.printStackTrace();
+                Loggers.RAFT.error("delete old snapshot error after save snapshot", e);
+                throw new IllegalStateException("delete old snapshot error after save snapshot");
             }
-
         } else {
-            // 正常执行逻辑即可
             try {
                 loadSnapshot();
             } catch (IOException e) {
-                e.printStackTrace();
+                Loggers.RAFT.error("load snapshot error", e);
+                throw new IllegalStateException("load snapshot error");
             }
         }
         return true;
@@ -133,6 +127,7 @@ public class NamingSnapshotOperation implements SnapshotOperation {
 
     /**
      * 加载老版本保存在磁盘上的数据
+     * 并将加载到数据存储到对应的数据结构中
      *
      * @throws IOException
      */
@@ -257,7 +252,8 @@ public class NamingSnapshotOperation implements SnapshotOperation {
 
 
     /**
-     * 遍历
+     * 加载快照
+     * 遍历需要落地磁盘的RecordManager，将数据加载到内存
      *
      * @return
      */
@@ -270,7 +266,7 @@ public class NamingSnapshotOperation implements SnapshotOperation {
 
             LocalFileMeta localFileMeta = readMeta(snapshotMetaFilename);
 
-            if (null == localFileMeta){
+            if (null == localFileMeta) {
                 return;
             }
 
@@ -278,14 +274,15 @@ public class NamingSnapshotOperation implements SnapshotOperation {
 
             String snapshotDataFilename = getSnapshotDataFilename(recordManager.getSnapshotDataFilename());
             // 将加载出来的datums，赋值给内存结构
-            Map<String,Datum> datums = readData(snapshotDataFilename, snapshotDataLength, recordManager.getClazz());
+            Map<String, Datum> datums = readData(snapshotDataFilename, snapshotDataLength, recordManager.getClazz());
             recordManager.getRecordManager().setDatums(datums);
         }
     }
 
 
     /**
-     * 将当前最新的内存数据存储到磁盘
+     * 存储快照信息
+     * 将需要落地磁盘的RecordManager的内存数据存储到磁盘
      * 1.data信息落地磁盘
      * 2.meta信息落地磁盘
      */
@@ -324,8 +321,8 @@ public class NamingSnapshotOperation implements SnapshotOperation {
     /**
      * 基于NIO读取Data信息
      */
-    private <T extends Record> Map<String,Datum<T>> readData(String filename, int fileLength,
-                                                             Class<T> formattedClazz) throws IOException {
+    private <T extends Record> Map<String, Datum<T>> readData(String filename, int fileLength,
+                                                              Class<T> formattedClazz) throws IOException {
         FileInputStream in = null;
         FileChannel channel = null;
         try {
@@ -343,7 +340,7 @@ public class NamingSnapshotOperation implements SnapshotOperation {
             buffer.flip();
             Type type = new TypeReference<ConcurrentHashMap<String, Datum<T>>>(formattedClazz) {
             }.getType();
-           return JSON.parseObject(buffer.array(),type);
+            return JSON.parseObject(buffer.array(), type);
         } finally {
             if (in != null) {
                 in.close();
@@ -536,7 +533,6 @@ public class NamingSnapshotOperation implements SnapshotOperation {
         }
         return false;
     }
-
 
 
     private String getSnapshotMetaFilename(String metaFilename) {

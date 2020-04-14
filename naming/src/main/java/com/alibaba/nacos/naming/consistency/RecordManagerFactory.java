@@ -6,15 +6,21 @@ import com.alibaba.nacos.naming.misc.SwitchDomain;
 import com.alibaba.nacos.naming.pojo.Record;
 
 public enum RecordManagerFactory {
-    SWITCH_DOMAIN("switchDomain", SwitchDomain.class, true, "switch_domain.data", "switch_domain.meta", SwitchDomainManager.getInstance()),
+    SWITCH_DOMAIN("switchDomain", SwitchDomain.class, false, "switch_domain.data", "switch_domain.meta", SwitchDomainManager.getInstance()),
     SERVICE("service", Service.class, true, "service.data", "service.meta", ServiceManager.getInstance()),
     INSTANCES("instances", Instances.class, true, "instances.data", "instances.meta", InstancesManager.getInstance());
 
+    // 唯一标识
     private String id;
+    // 存储数据的类型，即Datum<T extends Record>中的T
     private Class clazz;
+    // 是否需要落地磁盘做快照
     private Boolean isNeedSnapshot;
+    // 快照对应的数据文件名
     private String snapshotDataFilename;
+    // 快照对应的元数据文件名
     private String snapshotMetaFilename;
+    // 存储数据对应的RecordManager的实现类
     private RecordManager recordManager;
 
     RecordManagerFactory(String id,
