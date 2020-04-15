@@ -1,8 +1,10 @@
 package com.alibaba.nacos.core.jraft;
 
-import com.alibaba.nacos.core.jraft.rpc.GetValueRequestProcessor;
+import com.alibaba.nacos.core.jraft.rpc.ConfigRequest;
+import com.alibaba.nacos.core.jraft.rpc.NamingRequest;
 import com.alibaba.nacos.core.jraft.rpc.ValueResponse;
 import com.alipay.remoting.rpc.RpcServer;
+import com.alipay.remoting.rpc.protocol.UserProcessor;
 import com.alipay.sofa.jraft.Node;
 import com.alipay.sofa.jraft.RaftGroupService;
 import com.alipay.sofa.jraft.conf.Configuration;
@@ -13,11 +15,12 @@ import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * @author jack_xjdai
  * @date 2020/4/1518:02
- * @description: 基于JRaft实现的Server
+ * @description: TODO
  */
 public class NacosServer {
 
@@ -25,7 +28,11 @@ public class NacosServer {
     private Node node;
     private NacosStateMachine fsm;
 
-    public NacosServer(final String dataPath, final String groupId, final PeerId serverId,
+    public NacosServer(final String dataPath,
+                       final String groupId,
+                       final PeerId serverId,
+                       final List<UserProcessor<NamingRequest>> namingRequestUserProcessors,
+                       final List<UserProcessor<ConfigRequest>> configRequestUserProcessors,
                        final NodeOptions nodeOptions) throws IOException {
         // 初始化路径
         FileUtils.forceMkdir(new File(dataPath));
@@ -34,12 +41,8 @@ public class NacosServer {
         final RpcServer rpcServer = new RpcServer(serverId.getPort());
         RaftRpcServerFactory.addRaftRequestProcessors(rpcServer);
         // 注册业务处理器
-        // TODO 此处需要初始化的时候放进来
-        NamingService namingService = new NamingServiceImpl();
-        rpcServer.registerUserProcessor(new GetValueRequestProcessor(namingService));
-//        CounterService counterService = new CounterServiceImpl(this);
-//        rpcServer.registerUserProcessor(new GetValueRequestProcessor(counterService));
-//        rpcServer.registerUserProcessor(new IncrementAndGetRequestProcessor(counterService));
+        namingRequestUserProcessors.forEach(rpcServer::registerUserProcessor);
+        configRequestUserProcessors.forEach(rpcServer::registerUserProcessor);
         // 初始化状态机
         this.fsm = new NacosStateMachine();
         // 设置状态机到启动参数
@@ -118,7 +121,7 @@ public class NacosServer {
         nodeOptions.setInitialConf(initConf);
 
         // 启动
-        final NacosServer counterServer = new NacosServer(dataPath, groupId, serverId, nodeOptions);
+        final NacosServer counterServer = new NacosServer(dataPath, groupId, serverId, null, null, nodeOptions);
         System.out.println("Started counter server at port:"
             + counterServer.getNode().getNodeId().getPeerId().getPort());
     }

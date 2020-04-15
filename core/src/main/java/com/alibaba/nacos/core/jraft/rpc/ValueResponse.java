@@ -4,10 +4,6 @@ import java.io.Serializable;
 
 /**
  * Value response.
- *
- * @author boyan (boyan@alibaba-inc.com)
- *
- * 2018-Apr-09 4:55:35 PM
  */
 public class ValueResponse implements Serializable {
 

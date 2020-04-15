@@ -9,14 +9,14 @@ import com.alipay.sofa.jraft.Closure;
 public abstract class NacosClosure implements Closure {
 
     private ValueResponse valueResponse;
-    private CounterOperation counterOperation;
+    private NacosOperation nacosOperation;
 
-    public void setCounterOperation(CounterOperation counterOperation) {
-        this.counterOperation = counterOperation;
+    public void setNacosOperation(NacosOperation nacosOperation) {
+        this.nacosOperation = nacosOperation;
     }
 
-    public CounterOperation getCounterOperation() {
-        return counterOperation;
+    public NacosOperation getNacosOperation() {
+        return nacosOperation;
     }
 
     public ValueResponse getValueResponse() {

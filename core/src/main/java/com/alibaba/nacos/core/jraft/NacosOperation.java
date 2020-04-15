@@ -7,7 +7,7 @@ import java.io.Serializable;
  *
  * @author likun (saimu.msm@antfin.com)
  */
-public class CounterOperation implements Serializable {
+public class NacosOperation implements Serializable {
 
     private static final long serialVersionUID = -6597003954824547294L;
 
@@ -19,19 +19,19 @@ public class CounterOperation implements Serializable {
     private byte              op;
     private long              delta;
 
-    public static CounterOperation createGet() {
-        return new CounterOperation(GET);
+    public static NacosOperation createGet() {
+        return new NacosOperation(GET);
     }
 
-    public static CounterOperation createIncrement(final long delta) {
-        return new CounterOperation(INCREMENT, delta);
+    public static NacosOperation createIncrement(final long delta) {
+        return new NacosOperation(INCREMENT, delta);
     }
 
-    public CounterOperation(byte op) {
+    public NacosOperation(byte op) {
         this(op, 0);
     }
 
-    public CounterOperation(byte op, long delta) {
+    public NacosOperation(byte op, long delta) {
         this.op = op;
         this.delta = delta;
     }

@@ -1,4 +1,4 @@
-package com.alibaba.nacos.core.jraft.rpc;
+package com.alibaba.nacos.naming.jraft.rpc;
 
 import com.alibaba.nacos.core.jraft.NacosClosure;
 import com.alibaba.nacos.core.jraft.NamingService;
@@ -10,25 +10,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * GetValueRequest processor.
- *
- * @author boyan (boyan@alibaba-inc.com)
- * <p>
- * 2018-Apr-09 5:48:33 PM
+ * RegisterInstanceRequest processor.
  */
-public class GetValueRequestProcessor extends AsyncUserProcessor<GetValueRequest> {
+public class RegisterInstanceRequestProcessor extends AsyncUserProcessor<RegisterInstanceRequest> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(GetValueRequestProcessor.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RegisterInstanceRequestProcessor.class);
 
     private final NamingService namingService;
 
-    public GetValueRequestProcessor(NamingService namingService) {
+    public RegisterInstanceRequestProcessor(NamingService namingService) {
         super();
         this.namingService = namingService;
     }
 
     @Override
-    public void handleRequest(BizContext bizCtx, AsyncContext asyncCtx, GetValueRequest request) {
+    public void handleRequest(BizContext bizCtx, AsyncContext asyncCtx, RegisterInstanceRequest request) {
         final NacosClosure closure = new NacosClosure() {
             @Override
             public void run(Status status) {
@@ -36,11 +32,11 @@ public class GetValueRequestProcessor extends AsyncUserProcessor<GetValueRequest
             }
         };
 
-        this.namingService.get(request.isReadOnlySafe(), closure);
+        this.namingService.register(request, closure);
     }
 
     @Override
     public String interest() {
-        return GetValueRequest.class.getName();
+        return RegisterInstanceRequest.class.getName();
     }
 }
