@@ -3,8 +3,14 @@ package com.alibaba.nacos.naming.consistency;
 import com.alibaba.nacos.naming.core.Instances;
 import com.alibaba.nacos.naming.core.Service;
 import com.alibaba.nacos.naming.misc.SwitchDomain;
-import com.alibaba.nacos.naming.pojo.Record;
 
+/**
+ * @author jack_xjdai
+ * @date 2020/4/13 13:50
+ * @description: RecordManager工厂类
+ * Record是需要做落地磁盘快照的接口类
+ * 实现它的实体类都可以支持落地磁盘做快照
+ */
 public enum RecordManagerFactory {
     SWITCH_DOMAIN("switchDomain", SwitchDomain.class, false, "switch_domain.data", "switch_domain.meta", SwitchDomainManager.getInstance()),
     SERVICE("service", Service.class, true, "service.data", "service.meta", ServiceManager.getInstance()),
@@ -28,7 +34,7 @@ public enum RecordManagerFactory {
                          Boolean isNeedSnapshot,
                          String snapshotDataFilename,
                          String snapshotMetaFilename,
-                         RecordManager<? extends Record> recordManager) {
+                         RecordManager recordManager) {
         this.id = id;
         this.clazz = clazz;
         this.isNeedSnapshot = isNeedSnapshot;
@@ -61,7 +67,13 @@ public enum RecordManagerFactory {
         return recordManager;
     }
 
-    public static RecordManager<? extends Record> determineRecordManager(String id) {
+    /**
+     * 根据id获取RecordManager
+     *
+     * @param id
+     * @return
+     */
+    public static RecordManager determineRecordManager(String id) {
         for (RecordManagerFactory recordManagerFactory : RecordManagerFactory.values()) {
             if (recordManagerFactory.getId().equals(id)) {
                 return recordManagerFactory.getRecordManager();
@@ -70,13 +82,33 @@ public enum RecordManagerFactory {
         throw new IllegalArgumentException("没有找到相对应的RecordManager");
     }
 
-
-    public static RecordManager<? extends Record> determineRecordManagerByClass(Class clazz) {
+    /**
+     * 根据Datum的Value的类型确定RecordManager
+     *
+     * @param clazz
+     * @return
+     */
+    public static RecordManager determineRecordManagerByClass(Class clazz) {
         for (RecordManagerFactory recordManagerFactory : RecordManagerFactory.values()) {
             if (recordManagerFactory.getClazz().equals(clazz)) {
                 return recordManagerFactory.getRecordManager();
             }
         }
         throw new IllegalArgumentException("没有找到相对应的RecordManager");
+    }
+
+    /**
+     * 根据Datum的Value的类型确定RecordManagerFactory
+     *
+     * @param clazz
+     * @return
+     */
+    public static RecordManagerFactory determineRecordManagerFactoryByClass(Class clazz) {
+        for (RecordManagerFactory recordManagerFactory : RecordManagerFactory.values()) {
+            if (recordManagerFactory.getClazz().equals(clazz)) {
+                return recordManagerFactory;
+            }
+        }
+        throw new IllegalArgumentException("没有找到相对应的RecordManagerFactory");
     }
 }

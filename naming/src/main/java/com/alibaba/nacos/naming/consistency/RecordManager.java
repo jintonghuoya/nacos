@@ -12,4 +12,10 @@ public interface RecordManager<T extends Record> {
     Map<String, Datum<T>> getDatums();
 
     void setDatums(Map<String, Datum<T>> datums);
+
+    void addDatum(String key, Datum<T> value);
+
+    void removeDatum(String key);
+
+    byte[]  getDatumsBytes();
 }

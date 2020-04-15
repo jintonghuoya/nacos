@@ -33,7 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author jack_xjdai
- * @date 2020/4/713:50
+ * @date 2020/4/7 13:50
  * @description: 注册中心快照操作
  */
 public class NamingSnapshotOperation implements SnapshotOperation {
@@ -137,23 +137,38 @@ public class NamingSnapshotOperation implements SnapshotOperation {
             if (snapshotDir.isDirectory() && snapshotDir.listFiles() != null) {
                 for (File datumFile : snapshotDir.listFiles()) {
                     datum = readOldDatum(datumFile, snapshotDir.getName());
-                    if (datum == null)
-                        continue;
-                    RecordManagerFactory.determineRecordManagerByClass(datum.value.getClass()).getDatums().put(datum.key, datum);
+                    processDatum(datum);
                 }
                 continue;
             }
             datum = readOldDatum(snapshotDir, StringUtils.EMPTY);
-            if (datum == null) {
-                continue;
-            }
-            RecordManagerFactory.determineRecordManagerByClass(datum.value.getClass()).getDatums().put(datum.key, datum);
+            processDatum(datum);
+        }
+    }
+
+    /**
+     * 处理从文件读出来的Datum
+     * 根据Datum<T>的T类型获取RecordManager
+     * 并判断其是否需要持久化
+     *
+     * @param datum
+     */
+    private void processDatum(Datum datum) {
+        if (datum == null)
+            return;
+        RecordManagerFactory recordManagerFactory = RecordManagerFactory.determineRecordManagerFactoryByClass(datum.value.getClass());
+        // 判断是否需要持久化做快照
+        if (recordManagerFactory.getNeedSnapshot()) {
+            recordManagerFactory.getRecordManager().addDatum(datum.key, datum);
         }
     }
 
 
     /**
      * 读取老版本缓存到磁盘上的Datum
+     * 这块的代码是从老版本的RaftCore中copy过来的
+     * 为的是不对RaftCore产生依赖
+     * 后续切换新旧版本存储的时候直接删除老版本的RaftCore以及相关类即可
      *
      * @param file
      * @param namespaceId
@@ -297,13 +312,11 @@ public class NamingSnapshotOperation implements SnapshotOperation {
             }
 
             // 拿到当前的内存数据
-            Map<String, Datum> datums = recordManager.getRecordManager().getDatums();
+            byte[] dataBytes = recordManager.getRecordManager().getDatumsBytes();
 
-            if (datums.isEmpty()) {
+            if (dataBytes.length == 0) {
                 return;
             }
-
-            byte[] dataBytes = JSON.toJSONBytes(datums);
 
             String snapshotDataFilename = getSnapshotDataFilename(recordManager.getSnapshotDataFilename());
             saveFile(snapshotDataFilename, dataBytes);
@@ -341,96 +354,6 @@ public class NamingSnapshotOperation implements SnapshotOperation {
             Type type = new TypeReference<ConcurrentHashMap<String, Datum<T>>>(formattedClazz) {
             }.getType();
             return JSON.parseObject(buffer.array(), type);
-        } finally {
-            if (in != null) {
-                in.close();
-            }
-            if (channel != null) {
-                channel.close();
-            }
-        }
-    }
-
-    private void readSwitchDomainData(String filename, int fileLength, RecordManagerFactory recordManager) throws IOException {
-        FileInputStream in = null;
-        FileChannel channel = null;
-        try {
-
-            File file = new File(filename);
-            if (!file.exists()) {
-                throw new IllegalArgumentException();
-            }
-
-            in = new FileInputStream(file);
-            channel = in.getChannel();
-
-            ByteBuffer buffer = ByteBuffer.allocate(fileLength);
-            channel.read(buffer);
-            buffer.flip();
-
-            recordManager.getRecordManager().setDatums(
-                JSON.parseObject(buffer.array(), new TypeReference<ConcurrentHashMap<String, Datum<SwitchDomain>>>() {
-                }.getType()));
-        } finally {
-            if (in != null) {
-                in.close();
-            }
-            if (channel != null) {
-                channel.close();
-            }
-        }
-    }
-
-    private void readServiceData(String filename, int fileLength, RecordManagerFactory recordManager) throws IOException {
-        FileInputStream in = null;
-        FileChannel channel = null;
-        try {
-
-            File file = new File(filename);
-            if (!file.exists()) {
-                throw new IllegalArgumentException();
-            }
-
-            in = new FileInputStream(file);
-            channel = in.getChannel();
-
-            ByteBuffer buffer = ByteBuffer.allocate(fileLength);
-            channel.read(buffer);
-            buffer.flip();
-
-            recordManager.getRecordManager().setDatums(
-                JSON.parseObject(buffer.array(), new TypeReference<ConcurrentHashMap<String, Datum<Service>>>() {
-                }.getType()));
-        } finally {
-            if (in != null) {
-                in.close();
-            }
-            if (channel != null) {
-                channel.close();
-            }
-        }
-    }
-
-    private void readInstancesData(String filename, int fileLength, RecordManagerFactory recordManager) throws IOException {
-        FileInputStream in = null;
-        FileChannel channel = null;
-        try {
-
-            File file = new File(filename);
-            if (!file.exists()) {
-                throw new IllegalArgumentException();
-            }
-
-            in = new FileInputStream(file);
-            channel = in.getChannel();
-
-            ByteBuffer buffer = ByteBuffer.allocate(fileLength);
-            channel.read(buffer);
-            buffer.flip();
-
-            recordManager.getRecordManager().setDatums(
-                JSON.parseObject(buffer.array(), new TypeReference<ConcurrentHashMap<String, Datum<Instances>>>() {
-                }.getType()));
         } finally {
             if (in != null) {
                 in.close();
@@ -523,6 +446,8 @@ public class NamingSnapshotOperation implements SnapshotOperation {
 
     /**
      * 是否需要切换新老版本的存储
+     * 判断的依据就是老版本的存储Snapshot的目录是否有文件
+     * 如果没有，是使用的新版本，或者切换到新版本并已经被删除了
      *
      * @return
      */
@@ -535,6 +460,12 @@ public class NamingSnapshotOperation implements SnapshotOperation {
     }
 
 
+    /**
+     * 获取快照的元信息的文件名
+     *
+     * @param metaFilename
+     * @return
+     */
     private String getSnapshotMetaFilename(String metaFilename) {
         if (Strings.isNullOrEmpty(snapshotMetaDir)
             || Strings.isNullOrEmpty(metaFilename)) {
@@ -543,6 +474,12 @@ public class NamingSnapshotOperation implements SnapshotOperation {
         return snapshotMetaDir + File.separator + metaFilename;
     }
 
+    /**
+     * 获取快照的数据信息的文件名
+     *
+     * @param dataFilename
+     * @return
+     */
     private String getSnapshotDataFilename(String dataFilename) {
         if (Strings.isNullOrEmpty(snapshotDataDir)
             || Strings.isNullOrEmpty(dataFilename)) {
