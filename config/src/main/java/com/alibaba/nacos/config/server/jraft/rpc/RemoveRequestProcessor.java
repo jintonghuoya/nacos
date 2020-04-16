@@ -9,19 +9,19 @@ import com.alipay.sofa.jraft.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class PublishRequestProcessor extends AsyncUserProcessor<PublishJRaftRequest> {
+public class RemoveRequestProcessor extends AsyncUserProcessor<RemoveJRaftRequest> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PublishRequestProcessor.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RemoveRequestProcessor.class);
 
     private final ConfigJRaftService configJraftService;
 
-    public PublishRequestProcessor(ConfigJRaftService configJraftService) {
+    public RemoveRequestProcessor(ConfigJRaftService configJraftService) {
         super();
         this.configJraftService = configJraftService;
     }
 
     @Override
-    public void handleRequest(BizContext bizCtx, AsyncContext asyncCtx, PublishJRaftRequest request) {
+    public void handleRequest(BizContext bizCtx, AsyncContext asyncCtx, RemoveJRaftRequest request) {
         final JRaftClosure closure = new JRaftClosure() {
             @Override
             public void run(Status status) {
@@ -34,6 +34,6 @@ public class PublishRequestProcessor extends AsyncUserProcessor<PublishJRaftRequ
 
     @Override
     public String interest() {
-        return PublishJRaftRequest.class.getName();
+        return RemoveJRaftRequest.class.getName();
     }
 }

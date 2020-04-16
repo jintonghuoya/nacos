@@ -1,5 +1,6 @@
 package com.alibaba.nacos.core.jraft;
 
+import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.core.utils.Loggers;
 import com.alipay.remoting.exception.CodecException;
 import com.alipay.remoting.serialization.SerializerManager;
@@ -11,14 +12,21 @@ import com.alipay.sofa.jraft.storage.snapshot.SnapshotReader;
 import com.alipay.sofa.jraft.storage.snapshot.SnapshotWriter;
 
 import java.nio.ByteBuffer;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author jack_xjdai
  * @date 2020/4/15 17:51
- * @description: 基于JRaft实现的Nacos的状态机
+ * @description: 基于JRaft实现的状态机
  */
-public class NacosStateMachine extends StateMachineAdapter {
+public class JRaftStateMachine extends StateMachineAdapter {
+
+    private Map<Integer, JRaftOperationFactory> jRaftOperationFactoryMap;
+
+    public JRaftStateMachine(Map<Integer, JRaftOperationFactory> jRaftOperationFactoryMap) {
+        this.jRaftOperationFactoryMap = jRaftOperationFactoryMap;
+    }
 
     /**
      * Leader term
@@ -38,36 +46,31 @@ public class NacosStateMachine extends StateMachineAdapter {
     public void onApply(Iterator iterator) {
         while (iterator.hasNext()) {
             long current = 0;
-            NacosOperation nacosOperation = null;
+            JRaftOperation jRaftOperation = null;
 
-            NacosClosure closure = null;
+            JRaftClosure closure = null;
             if (iterator.done() != null) {
                 // This task is applied by this node, get value from closure to avoid additional parsing.
-                closure = (NacosClosure) iterator.done();
-                nacosOperation = closure.getNacosOperation();
+                closure = (JRaftClosure) iterator.done();
+                jRaftOperation = closure.getJRaftOperation();
             } else {
                 // Have to parse FetchAddRequest from this user log.
                 final ByteBuffer data = iterator.getData();
                 try {
-                    nacosOperation = SerializerManager.getSerializer(SerializerManager.Hessian2).deserialize(
-                        data.array(), NacosOperation.class.getName());
+                    jRaftOperation = SerializerManager.getSerializer(SerializerManager.Hessian2).deserialize(
+                        data.array(), JRaftOperation.class.getName());
                 } catch (final CodecException e) {
                     Loggers.AUTH.error("Fail to decode IncrementAndGetRequest", e);
                 }
             }
-            if (nacosOperation != null) {
-                switch (nacosOperation.getOp()) {
-                    case NacosOperation.GET:
-                        current = 1L;
-                        Loggers.AUTH.info("Get value={} at logIndex={}", current, iterator.getIndex());
-                        break;
-                    case NacosOperation.INCREMENT:
-                        final long delta = nacosOperation.getDelta();
-                        final long prev = 1L;
-                        AtomicLong value = new AtomicLong(1L);
-                        current = value.addAndGet(delta);
-                        Loggers.AUTH.info("Added value={} by delta={} at logIndex={}", prev, delta, iterator.getIndex());
-                        break;
+            if (jRaftOperation != null) {
+
+                // 统一处理本地请求
+                // TODO 异常处理，如果operationCode不存在处理器，如何处理
+                try {
+                    jRaftOperationFactoryMap.get(jRaftOperation.getOperation()).process(jRaftOperation);
+                } catch (NacosException e) {
+                    e.printStackTrace();
                 }
 
                 if (closure != null) {
@@ -81,6 +84,7 @@ public class NacosStateMachine extends StateMachineAdapter {
 
     /**
      * 加载快照的入口
+     * TODO 需要做快照这块的抽象入口
      *
      * @param reader
      * @return

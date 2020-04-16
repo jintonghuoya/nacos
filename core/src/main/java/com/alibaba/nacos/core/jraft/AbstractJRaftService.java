@@ -17,33 +17,39 @@ import java.nio.ByteBuffer;
  */
 public abstract class AbstractJRaftService implements JRaftService {
 
-    private NacosServer nacosServer;
+    private JRaftServer JRaftServer;
 
-    public AbstractJRaftService(NacosServer nacosServer) {
-        this.nacosServer = nacosServer;
+    public AbstractJRaftService(JRaftServer JRaftServer) {
+        this.JRaftServer = JRaftServer;
     }
 
     private boolean isLeader() {
-        return this.nacosServer.getFsm().isLeader();
+        return this.JRaftServer.getFsm().isLeader();
     }
 
     private String getRedirect() {
-        return this.nacosServer.redirect().getRedirect();
+        return this.JRaftServer.redirect().getRedirect();
     }
 
-    public void applyOperation(NacosOperation operation, NacosClosure closure) {
+    /**
+     * 需要走JRaft协议的请求
+     *
+     * @param operation
+     * @param closure
+     */
+    public void applyOperation(JRaftOperation operation, JRaftClosure closure) {
         if (!isLeader()) {
             handlerNotLeaderError(closure);
             return;
         }
 
         try {
-            closure.setNacosOperation(operation);
+            closure.setJRaftOperation(operation);
             final Task task = new Task();
             task.setData(ByteBuffer.wrap(
                 SerializerManager.getSerializer(SerializerManager.Hessian2).serialize(operation)));
             task.setDone(closure);
-            this.nacosServer.getNode().apply(task);
+            this.JRaftServer.getNode().apply(task);
         } catch (CodecException e) {
             String errorMsg = "Fail to encode CounterOperation";
             Loggers.AUTH.error(errorMsg, e);
@@ -52,7 +58,7 @@ public abstract class AbstractJRaftService implements JRaftService {
         }
     }
 
-    private void handlerNotLeaderError(final NacosClosure closure) {
+    private void handlerNotLeaderError(final JRaftClosure closure) {
         closure.failure("Not leader.", getRedirect());
         closure.run(new Status(RaftError.EPERM, "Not leader"));
     }

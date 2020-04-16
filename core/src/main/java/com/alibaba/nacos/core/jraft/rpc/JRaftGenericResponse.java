@@ -5,19 +5,19 @@ import java.io.Serializable;
 /**
  * Value response.
  */
-public class ValueResponse implements Serializable {
+public class JRaftGenericResponse implements Serializable {
 
     private static final long serialVersionUID = -4220017686727146773L;
 
-    private long              value;
-    private boolean           success;
+    private Object value;
+    private boolean success;
 
     /**
      * redirect peer id
      */
-    private String            redirect;
+    private String redirect;
 
-    private String            errorMsg;
+    private String errorMsg;
 
     public String getErrorMsg() {
         return this.errorMsg;
@@ -43,15 +43,15 @@ public class ValueResponse implements Serializable {
         this.success = success;
     }
 
-    public long getValue() {
+    public Object getValue() {
         return this.value;
     }
 
-    public void setValue(long value) {
+    public void setValue(Object value) {
         this.value = value;
     }
 
-    public ValueResponse(long value, boolean success, String redirect, String errorMsg) {
+    public JRaftGenericResponse(long value, boolean success, String redirect, String errorMsg) {
         super();
         this.value = value;
         this.success = success;
@@ -59,14 +59,14 @@ public class ValueResponse implements Serializable {
         this.errorMsg = errorMsg;
     }
 
-    public ValueResponse() {
+    public JRaftGenericResponse() {
         super();
     }
 
     @Override
     public String toString() {
         return "ValueResponse [value=" + this.value + ", success=" + this.success + ", redirect=" + this.redirect
-               + ", errorMsg=" + this.errorMsg + "]";
+            + ", errorMsg=" + this.errorMsg + "]";
     }
 
 }
