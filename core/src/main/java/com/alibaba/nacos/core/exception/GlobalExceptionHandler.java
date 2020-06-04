@@ -29,6 +29,7 @@ import java.io.IOException;
  * Global Exception Handler
  * This Exception Handler is for Config and Naming.
  * Both two module depend on core module, so we put this handler in core module.
+ * TODO Add Global Metric Collectors.
  *
  * @author jintonghuoya
  */
