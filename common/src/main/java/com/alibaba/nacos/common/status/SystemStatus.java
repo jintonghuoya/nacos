@@ -1,5 +1,7 @@
 package com.alibaba.nacos.common.status;
 
+import com.alibaba.nacos.common.exception.BusinessException;
+
 /**
  * @author: daixinjie
  * @Date: 2020/05/29 21:52 下午

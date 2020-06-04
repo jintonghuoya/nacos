@@ -1,4 +1,6 @@
-package com.alibaba.nacos.common.status;
+package com.alibaba.nacos.common.exception;
+
+import com.alibaba.nacos.common.status.IStatus;
 
 public class BusinessException extends RuntimeException {
 
