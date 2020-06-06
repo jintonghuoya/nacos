@@ -41,7 +41,7 @@ public class GlobalExceptionHandler {
      *
      * @throws BusinessException
      */
-    @ExceptionHandler(NacosException.class)
+    @ExceptionHandler(BusinessException.class)
     public ResponseEntity<String> handleBusinessException(BusinessException ex) throws IOException {
         return ResponseEntity.status(ex.getCode()).body(ExceptionUtil.getAllExceptionMsg(ex));
     }
