@@ -15,13 +15,17 @@
  */
 package com.alibaba.nacos.common.utils;
 
+import com.alibaba.nacos.common.exception.BusinessException;
+import com.alibaba.nacos.common.status.CommonStatus;
+import com.alibaba.nacos.common.status.SystemStatus;
+
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 /**
  * MD5 util
  *
- *@author nacos
+ * @author nacos
  */
 @SuppressWarnings("PMD.ClassNamingShouldBeCamelRule")
 public class MD5Utils {
@@ -45,24 +49,24 @@ public class MD5Utils {
             if (messageDigest != null) {
                 return encodeHexString(messageDigest.digest(bytes));
             }
-            throw new NoSuchAlgorithmException("MessageDigest get MD5 instance error");
+            throw new BusinessException(CommonStatus.GET_MD5_INSTANCE_ERROR);
         } finally {
             MESSAGE_DIGEST_LOCAL.remove();
         }
     }
 
-    public static String md5Hex(String value,String encode) {
+    public static String md5Hex(String value, String encode) {
         try {
             return md5Hex(value.getBytes(encode));
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new BusinessException(SystemStatus.FAILURE, e);
         }
     }
 
     /**
      * 将一个字节数组转化为可见的字符串
      */
-     public static String encodeHexString(byte[] bytes) {
+    public static String encodeHexString(byte[] bytes) {
         int l = bytes.length;
 
         char[] out = new char[l << 1];

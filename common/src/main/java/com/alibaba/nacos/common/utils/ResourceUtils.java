@@ -15,12 +15,10 @@
  */
 package com.alibaba.nacos.common.utils;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
+import com.alibaba.nacos.common.exception.BusinessException;
+import com.alibaba.nacos.common.status.SystemStatus;
+
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Properties;
@@ -50,7 +48,7 @@ public class ResourceUtils {
 
             URL url = (classLoader != null ? classLoader.getResource(path) : ClassLoader.getSystemResource(path));
             if (url == null) {
-                throw new FileNotFoundException("Resource [" + resource + "] does not exist");
+                throw new BusinessException(SystemStatus.RESOURCE_NOT_FOUND_EXCEPTION, "Resource [" + resource + "] does not exist");
             }
 
             return url;
@@ -80,7 +78,7 @@ public class ResourceUtils {
             url = ClassLoader.getSystemResource(resource);
         }
         if (url == null) {
-            throw new IOException("Could not find resource " + resource);
+            throw new BusinessException(SystemStatus.RESOURCE_NOT_FOUND_EXCEPTION, "Could not find resource " + resource);
         }
         return url;
     }
@@ -114,7 +112,7 @@ public class ResourceUtils {
             in = ClassLoader.getSystemResourceAsStream(resource);
         }
         if (in == null) {
-            throw new IOException("Could not find resource " + resource);
+            throw new BusinessException(SystemStatus.IO_EXCEPTION, "Could not find resource " + resource);
         }
         return in;
     }

@@ -16,6 +16,8 @@
 
 package com.alibaba.nacos.common.http;
 
+import com.alibaba.nacos.common.exception.BusinessException;
+import com.alibaba.nacos.common.status.SystemStatus;
 import com.alibaba.nacos.common.utils.StringUtils;
 
 import java.io.UnsupportedEncodingException;
@@ -50,7 +52,7 @@ public final class HttpUtils {
             }
             Matcher matcher = CONTEXT_PATH_MATCH.matcher(subPath);
             if (matcher.find()) {
-                throw new IllegalArgumentException("Illegal url path expression : " + subPath);
+                throw new BusinessException(SystemStatus.ILLEGAL_ARGUMENT_EXCEPTION, "Illegal url path expression : " + subPath);
             }
             if (pre == null || !pre.endsWith("/")) {
                 if (subPath.startsWith("/")) {

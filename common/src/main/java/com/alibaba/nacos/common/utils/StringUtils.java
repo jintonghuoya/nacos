@@ -16,6 +16,8 @@
 package com.alibaba.nacos.common.utils;
 
 import com.alibaba.nacos.api.common.Constants;
+import com.alibaba.nacos.common.exception.BusinessException;
+import com.alibaba.nacos.common.status.SystemStatus;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -139,7 +141,7 @@ public class StringUtils {
     private static void escapeJavaStyleString(Writer out, String str, boolean escapeSingleQuote,
                                               boolean escapeForwardSlash) throws IOException {
         if (out == null) {
-            throw new IllegalArgumentException("The Writer must not be null");
+            throw new BusinessException(SystemStatus.ILLEGAL_ARGUMENT_EXCEPTION, "The Writer must not be null");
         }
         if (str == null) {
             return;

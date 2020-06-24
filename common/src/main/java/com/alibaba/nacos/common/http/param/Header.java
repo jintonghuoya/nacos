@@ -17,11 +17,10 @@
 package com.alibaba.nacos.common.http.param;
 
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import com.alibaba.nacos.common.exception.BusinessException;
+import com.alibaba.nacos.common.status.SystemStatus;
+
+import java.util.*;
 
 /**
  * @author <a href="mailto:liaochuntao@live.com">liaochuntao</a>
@@ -78,9 +77,9 @@ public class Header {
 
     public void addAll(List<String> list) {
         if ((list.size() & 1) != 0) {
-            throw new IllegalArgumentException("list size must be a multiple of 2");
+            throw new BusinessException(SystemStatus.ILLEGAL_ARGUMENT_EXCEPTION, "list size must be a multiple of 2");
         }
-        for (int i = 0; i < list.size();) {
+        for (int i = 0; i < list.size(); ) {
             header.put(list.get(i++), list.get(i++));
         }
     }

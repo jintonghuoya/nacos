@@ -16,10 +16,12 @@
 
 package com.alibaba.nacos.common.http;
 
+import com.alibaba.nacos.common.exception.BusinessException;
 import com.alibaba.nacos.common.http.handler.ResponseHandler;
 import com.alibaba.nacos.common.http.param.Header;
 import com.alibaba.nacos.common.http.param.Query;
 import com.alibaba.nacos.common.model.RestResult;
+import com.alibaba.nacos.common.status.SystemStatus;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
@@ -31,7 +33,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.util.EntityUtils;
 
-import java.io.IOException;
 import java.lang.reflect.Type;
 import java.net.URI;
 
@@ -40,93 +41,91 @@ import java.net.URI;
  */
 public abstract class BaseHttpClient {
 
-	protected <T> RestResult<T> execute(CloseableHttpClient httpClient,
-			final Type type, HttpUriRequest request) throws Exception {
-		CloseableHttpResponse response = httpClient.execute(request);
-		try {
-			final String body = EntityUtils.toString(response.getEntity());
-			RestResult<T> data = ResponseHandler.convert(body, type);
-			return data;
-		}
-		finally {
-			HttpClientUtils.closeQuietly(response);
-		}
-	}
+    protected <T> RestResult<T> execute(CloseableHttpClient httpClient,
+                                        final Type type, HttpUriRequest request) throws Exception {
+        CloseableHttpResponse response = httpClient.execute(request);
+        try {
+            final String body = EntityUtils.toString(response.getEntity());
+            RestResult<T> data = ResponseHandler.convert(body, type);
+            return data;
+        } finally {
+            HttpClientUtils.closeQuietly(response);
+        }
+    }
 
-	protected <T> void execute(CloseableHttpAsyncClient httpAsyncClient, final Type type,
-			final Callback<T> callback, final HttpUriRequest request) {
-		if (!httpAsyncClient.isRunning()) {
-			throw new IllegalArgumentException("httpAsyncClient already shutdown");
-		}
-		httpAsyncClient.execute(request, new FutureCallback<HttpResponse>() {
+    protected <T> void execute(CloseableHttpAsyncClient httpAsyncClient, final Type type,
+                               final Callback<T> callback, final HttpUriRequest request) {
+        if (!httpAsyncClient.isRunning()) {
+            throw new BusinessException(SystemStatus.ILLEGAL_ARGUMENT_EXCEPTION, "httpAsyncClient already shutdown");
+        }
+        httpAsyncClient.execute(request, new FutureCallback<HttpResponse>() {
 
-			@Override
-			public void completed(HttpResponse response) {
-				try {
-					final String body = EntityUtils.toString(response.getEntity());
-					RestResult<T> data = ResponseHandler.convert(body, type);
-					data.setCode(response.getStatusLine().getStatusCode());
-					callback.onReceive(data);
-				}
-				catch (Throwable e) {
-					callback.onError(e);
-				}
-			}
+            @Override
+            public void completed(HttpResponse response) {
+                try {
+                    final String body = EntityUtils.toString(response.getEntity());
+                    RestResult<T> data = ResponseHandler.convert(body, type);
+                    data.setCode(response.getStatusLine().getStatusCode());
+                    callback.onReceive(data);
+                } catch (Throwable e) {
+                    callback.onError(e);
+                }
+            }
 
-			@Override
-			public void failed(Exception ex) {
-				callback.onError(ex);
-			}
+            @Override
+            public void failed(Exception ex) {
+                callback.onError(ex);
+            }
 
-			@Override
-			public void cancelled() {
+            @Override
+            public void cancelled() {
 
-			}
-		});
-	}
+            }
+        });
+    }
 
-	protected String buildUrl(String baseUrl, Query query) {
-		if (query.isEmpty()) {
-			return baseUrl;
-		}
-		return baseUrl + "?" + query.toQueryUrl();
-	}
+    protected String buildUrl(String baseUrl, Query query) {
+        if (query.isEmpty()) {
+            return baseUrl;
+        }
+        return baseUrl + "?" + query.toQueryUrl();
+    }
 
-	protected HttpRequestBase build(String url, Header header, String method) throws Exception {
-		return build(url, header, null, method);
-	}
+    protected HttpRequestBase build(String url, Header header, String method) throws Exception {
+        return build(url, header, null, method);
+    }
 
-	protected HttpRequestBase build(String url, Header header, Object body,
-			String method) throws Exception {
+    protected HttpRequestBase build(String url, Header header, Object body,
+                                    String method) throws Exception {
 
-		BaseHttpMethod httpMethod = BaseHttpMethod.sourceOf(method);
-		httpMethod.init(url);
-		httpMethod.initHeader(header);
-		httpMethod.initEntity(body, header.getValue("Content-Type"));
-		return httpMethod.getRequestBase();
-	}
+        BaseHttpMethod httpMethod = BaseHttpMethod.sourceOf(method);
+        httpMethod.init(url);
+        httpMethod.initHeader(header);
+        httpMethod.initEntity(body, header.getValue("Content-Type"));
+        return httpMethod.getRequestBase();
+    }
 
-	private Header convertHeader(org.apache.http.Header[] headers) {
-		final Header nHeader = Header.newInstance();
-		for (org.apache.http.Header header : headers) {
-			nHeader.addParam(header.getName(), header.getValue());
-		}
-		return nHeader;
-	}
+    private Header convertHeader(org.apache.http.Header[] headers) {
+        final Header nHeader = Header.newInstance();
+        for (org.apache.http.Header header : headers) {
+            nHeader.addParam(header.getName(), header.getValue());
+        }
+        return nHeader;
+    }
 
-	public static class HttpGetWithEntity extends HttpEntityEnclosingRequestBase {
+    public static class HttpGetWithEntity extends HttpEntityEnclosingRequestBase {
 
-		public final static String METHOD_NAME = "GET";
+        public final static String METHOD_NAME = "GET";
 
-		public HttpGetWithEntity(String url) {
-			super();
-			setURI(URI.create(url));
-		}
+        public HttpGetWithEntity(String url) {
+            super();
+            setURI(URI.create(url));
+        }
 
-		@Override
-		public String getMethod() {
-			return METHOD_NAME;
-		}
-	}
+        @Override
+        public String getMethod() {
+            return METHOD_NAME;
+        }
+    }
 
 }

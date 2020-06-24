@@ -16,6 +16,9 @@
 
 package com.alibaba.nacos.common.http.param;
 
+import com.alibaba.nacos.common.exception.BusinessException;
+import com.alibaba.nacos.common.status.SystemStatus;
+
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.LinkedHashMap;
@@ -60,9 +63,9 @@ public class Query {
 
     public void initParams(List<String> list) {
         if ((list.size() & 1) != 0) {
-            throw new IllegalArgumentException("list size must be a multiple of 2");
+            throw new BusinessException(SystemStatus.ILLEGAL_ARGUMENT_EXCEPTION, "list size must be a multiple of 2");
         }
-        for (int i = 0; i < list.size();) {
+        for (int i = 0; i < list.size(); ) {
             addParam(list.get(i++), list.get(i++));
         }
     }
@@ -79,9 +82,8 @@ public class Query {
                     urlBuilder.append("&");
                 }
                 i--;
-            }
-            catch (UnsupportedEncodingException e) {
-                throw new RuntimeException(e);
+            } catch (UnsupportedEncodingException e) {
+                throw new BusinessException(SystemStatus.UNSUPPORTED_ENCODING_EXCEPTION, e);
             }
         }
 

@@ -16,24 +16,20 @@
 
 package com.alibaba.nacos.common.http;
 
+import com.alibaba.nacos.common.exception.BusinessException;
 import com.alibaba.nacos.common.http.handler.RequestHandler;
 import com.alibaba.nacos.common.http.param.Header;
+import com.alibaba.nacos.common.status.SystemStatus;
 import com.alibaba.nacos.common.utils.HttpMethod;
-import java.util.Iterator;
-import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpRequest;
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpPatch;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.client.methods.HttpTrace;
+import org.apache.http.client.methods.*;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * @author <a href="mailto:liaochuntao@live.com">liaochuntao</a>
@@ -142,7 +138,7 @@ public enum BaseHttpMethod {
     }
 
     protected HttpRequestBase createRequest(String url) {
-        throw new UnsupportedOperationException();
+        throw new BusinessException(SystemStatus.UNSUPPORTED_OPERATION_EXCEPTION);
     }
 
     public void initHeader(Header header) {
@@ -176,7 +172,7 @@ public enum BaseHttpMethod {
                 return method;
             }
         }
-        throw new IllegalArgumentException("Unsupported http method : " + name);
+        throw new BusinessException(SystemStatus.UNSUPPORTED_OPERATION_EXCEPTION, "Unsupported http method : " + name);
     }
 
 }

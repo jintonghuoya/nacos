@@ -16,6 +16,8 @@
 package com.alibaba.nacos.common.utils;
 
 import com.alibaba.nacos.api.common.Constants;
+import com.alibaba.nacos.common.exception.BusinessException;
+import com.alibaba.nacos.common.status.SystemStatus;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
@@ -125,7 +127,7 @@ public class IoUtils {
             if (fileOrDir.exists()) {
                 boolean isDeleteOk = fileOrDir.delete();
                 if (!isDeleteOk) {
-                    throw new IOException("delete fail");
+                    throw new BusinessException(SystemStatus.IO_EXCEPTION, "delete fail");
                 }
             }
         }
@@ -137,12 +139,12 @@ public class IoUtils {
     public static void cleanDirectory(File directory) throws IOException {
         if (!directory.exists()) {
             String message = directory + " does not exist";
-            throw new IllegalArgumentException(message);
+            throw new BusinessException(SystemStatus.ILLEGAL_ARGUMENT_EXCEPTION, message);
         }
 
         if (!directory.isDirectory()) {
             String message = directory + " is not a directory";
-            throw new IllegalArgumentException(message);
+            throw new BusinessException(SystemStatus.ILLEGAL_ARGUMENT_EXCEPTION, message);
         }
 
         File[] files = directory.listFiles();
@@ -150,7 +152,7 @@ public class IoUtils {
          * null if security restricted
          */
         if (files == null) {
-            throw new IOException("Failed to list contents of " + directory);
+            throw new BusinessException(SystemStatus.IO_EXCEPTION, "Failed to list contents of " + directory);
         }
 
         IOException exception = null;
@@ -183,14 +185,14 @@ public class IoUtils {
     static public void copyFile(String source, String target) throws IOException {
         File sf = new File(source);
         if (!sf.exists()) {
-            throw new IllegalArgumentException("source file does not exist.");
+            throw new BusinessException(SystemStatus.ILLEGAL_ARGUMENT_EXCEPTION, "source file does not exist.");
         }
         File tf = new File(target);
         if (!tf.getParentFile().mkdirs()) {
-            throw new RuntimeException("failed to create parent directory.");
+            throw new BusinessException(SystemStatus.IO_EXCEPTION, "failed to create parent directory.");
         }
         if (!tf.exists() && !tf.createNewFile()) {
-            throw new RuntimeException("failed to create target file.");
+            throw new BusinessException(SystemStatus.IO_EXCEPTION, "failed to create target file.");
         }
 
         FileChannel sc = null;
@@ -251,11 +253,11 @@ public class IoUtils {
     }
 
     public static void closeQuietly(InputStream input) {
-        closeQuietly((Closeable)input);
+        closeQuietly((Closeable) input);
     }
 
     public static void closeQuietly(OutputStream output) {
-        closeQuietly((Closeable)output);
+        closeQuietly((Closeable) output);
     }
 
 

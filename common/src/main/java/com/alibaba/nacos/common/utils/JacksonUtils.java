@@ -16,8 +16,8 @@
 
 package com.alibaba.nacos.common.utils;
 
-import com.alibaba.nacos.api.exception.runtime.NacosDeserializationException;
-import com.alibaba.nacos.api.exception.runtime.NacosSerializationException;
+import com.alibaba.nacos.common.exception.BusinessException;
+import com.alibaba.nacos.common.status.CommonStatus;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -36,107 +36,103 @@ import java.lang.reflect.Type;
  */
 public final class JacksonUtils {
 
-	static ObjectMapper mapper = new ObjectMapper();
+    static ObjectMapper mapper = new ObjectMapper();
 
-	static {
-		mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-		mapper.setSerializationInclusion(Include.NON_NULL);
-	}
+    static {
+        mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        mapper.setSerializationInclusion(Include.NON_NULL);
+    }
 
-	public static String toJson(Object obj) {
-		try {
-			return mapper.writeValueAsString(obj);
-		}
-		catch (JsonProcessingException e) {
-			throw new NacosSerializationException(obj.getClass(), e);
-		}
-	}
+    public static String toJson(Object obj) {
+        try {
+            return mapper.writeValueAsString(obj);
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(CommonStatus.NACOS_SERIALIZATION_EXCEPTION,
+                "Nacos serialize for class [" + obj.getClass().getName() + "] failed.", e);
+        }
+    }
 
-	public static byte[] toJsonBytes(Object obj) {
-		try {
-			return ByteUtils.toBytes(mapper.writeValueAsString(obj));
-		}
-		catch (JsonProcessingException e) {
-			throw new NacosSerializationException(obj.getClass(), e);
-		}
-	}
+    public static byte[] toJsonBytes(Object obj) {
+        try {
+            return ByteUtils.toBytes(mapper.writeValueAsString(obj));
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(CommonStatus.NACOS_SERIALIZATION_EXCEPTION,
+                "Nacos serialize for class [" + obj.getClass().getName() + "] failed.", e);
+        }
+    }
 
-	public static <T> T toObj(byte[] json, Class<T> cls) {
-		try {
-			return toObj(StringUtils.newString4UTF8(json), cls);
-		}
-		catch (Exception e) {
-			throw new NacosDeserializationException(cls, e);
-		}
-	}
+    public static <T> T toObj(byte[] json, Class<T> cls) {
+        try {
+            return toObj(StringUtils.newString4UTF8(json), cls);
+        } catch (Exception e) {
+            throw new BusinessException(CommonStatus.NACOS_SERIALIZATION_EXCEPTION,
+                "Nacos serialize for class [" + cls.getName() + "] failed.", e);
+        }
+    }
 
-	public static <T> T toObj(byte[] json, Type cls) {
-		try {
-			return toObj(StringUtils.newString4UTF8(json), cls);
-		}
-		catch (Exception e) {
-			throw new NacosDeserializationException(e);
-		}
-	}
+    public static <T> T toObj(byte[] json, Type cls) {
+        try {
+            return toObj(StringUtils.newString4UTF8(json), cls);
+        } catch (Exception e) {
+            throw new BusinessException(CommonStatus.NACOS_SERIALIZATION_EXCEPTION, e);
+        }
+    }
 
-	public static <T> T toObj(byte[] json, TypeReference<T> typeReference) {
-		try {
-			return toObj(StringUtils.newString4UTF8(json), typeReference);
-		}
-		catch (Exception e) {
-			throw new NacosDeserializationException(e);
-		}
-	}
+    public static <T> T toObj(byte[] json, TypeReference<T> typeReference) {
+        try {
+            return toObj(StringUtils.newString4UTF8(json), typeReference);
+        } catch (Exception e) {
+            throw new BusinessException(CommonStatus.NACOS_SERIALIZATION_EXCEPTION, e);
+        }
+    }
 
-	public static <T> T toObj(String json, Class<T> cls) {
-		try {
-			return mapper.readValue(json, cls);
-		}
-		catch (IOException e) {
-			throw new NacosDeserializationException(cls, e);
-		}
-	}
+    public static <T> T toObj(String json, Class<T> cls) {
+        try {
+            return mapper.readValue(json, cls);
+        } catch (IOException e) {
+            throw new BusinessException(CommonStatus.NACOS_SERIALIZATION_EXCEPTION,
+                "Nacos serialize for class [" + cls.getName() + "] failed.", e);
+        }
+    }
 
-	public static <T> T toObj(String json, Type type) {
-		try {
-			return mapper.readValue(json, mapper.constructType(type));
-		}
-		catch (IOException e) {
-			throw new NacosDeserializationException(e);
-		}
-	}
+    public static <T> T toObj(String json, Type type) {
+        try {
+            return mapper.readValue(json, mapper.constructType(type));
+        } catch (IOException e) {
+            throw new BusinessException(CommonStatus.NACOS_SERIALIZATION_EXCEPTION, e);
+        }
+    }
 
-	public static <T> T toObj(String json, TypeReference<T> typeReference) {
-		try {
-			return mapper.readValue(json, typeReference);
-		}
-		catch (IOException e) {
-			throw new NacosDeserializationException(typeReference.getClass(), e);
-		}
-	}
+    public static <T> T toObj(String json, TypeReference<T> typeReference) {
+        try {
+            return mapper.readValue(json, typeReference);
+        } catch (IOException e) {
+            throw new BusinessException(CommonStatus.NACOS_SERIALIZATION_EXCEPTION,
+                "Nacos serialize for class [" + typeReference.getClass().getName() + "] failed.", e);
+        }
+    }
 
-	public static JsonNode toObj(String json) {
-		try {
-			return mapper.readTree(json);
-		}
-		catch (IOException e) {
-			throw new NacosDeserializationException(e);
-		}
-	}
+    public static JsonNode toObj(String json) {
+        try {
+            return mapper.readTree(json);
+        } catch (IOException e) {
+            throw new BusinessException(CommonStatus.NACOS_SERIALIZATION_EXCEPTION, e);
+        }
+    }
 
-	public static void registerSubtype(Class<?> clz, String type) {
-		mapper.registerSubtypes(new NamedType(clz, type));
-	}
+    public static void registerSubtype(Class<?> clz, String type) {
+        mapper.registerSubtypes(new NamedType(clz, type));
+    }
 
-	public static ObjectNode createEmptyJsonNode() {
-		return new ObjectNode(mapper.getNodeFactory());
-	}
+    public static ObjectNode createEmptyJsonNode() {
+        return new ObjectNode(mapper.getNodeFactory());
+    }
 
-	public static ArrayNode createEmptyArrayNode() {
-		return new ArrayNode(mapper.getNodeFactory());
-	}
+    public static ArrayNode createEmptyArrayNode() {
+        return new ArrayNode(mapper.getNodeFactory());
+    }
 
-	public static JsonNode transferToJsonNode(Object obj) {
-		return mapper.valueToTree(obj);
-	}
+    public static JsonNode transferToJsonNode(Object obj) {
+        return mapper.valueToTree(obj);
+    }
 }
